@@ -99,49 +99,36 @@
   function symbolFuerCode(code, tag) { return symbol(codeInfo(code, tag)[0]); }
 
   // ---------- Symbol nach tatsächlichem Wetter ----------
-  // weather_code zählt hohe, dünne Schleierwolken als „bedeckt“, setzt Regen auch bei 0,0 mm und nimmt beim Tag die schlimmste Stunde.
-  // Deshalb nur aufhellen, nie verdüstern: Regen nur mit Menge, Wolken nach Sonnenscheindauer (tags) bzw. tiefen und mittleren Wolken (nachts).
-  function minuten(s) { var t = /(\d+)-(\d+)-(\d+)T(\d+):(\d+)/.exec(s); return Date.UTC(+t[1], t[2] - 1, +t[3], +t[4], +t[5]) / 60000; }
-  function stundenCode(m, i, code, regen) {
-    var h = m.h, d = m.d;
+  // weather_code setzt Regen auch bei 0,0 mm, zählt Sonne durch Schleierwolken als „bedeckt“ und nimmt beim Tag die schlimmste Stunde.
+  // Deshalb nur aufhellen, nie verdüstern: Regen nur mit Menge; tags nach Sonnenscheindauer, reine Sonne aber nur bei wenig Wolken; nachts Modellcode.
+  function wetterCode(code, tag, regen, sonne, wolken) {
     if (code >= 51 && regen < 0.1) code = 3;
-    if (code > 3 || i < 0 || i >= h.time.length) return code;
-    var tagIdx = d.time.indexOf(h.time[i].slice(0, 10)), t = minuten(h.time[i]);
-    // Sonnenstunde nur, wenn die ganze Stunde davor und danach hell ist (Bezug des Stundenwerts ist so egal)
-    if (tagIdx >= 0 && d.sunrise[tagIdx] && d.sunset[tagIdx] && t - 60 >= minuten(d.sunrise[tagIdx]) && t + 60 <= minuten(d.sunset[tagIdx])) {
-      if (!h.sunshine_duration || h.sunshine_duration[i] == null) return code;
-      var a = h.sunshine_duration[i] / 3600;
-      return Math.min(code, a >= 0.75 ? 0 : a >= 0.25 ? 1 : 3);
-    }
-    if (!h.cloud_cover_low || !h.cloud_cover_mid || h.cloud_cover_low[i] == null || h.cloud_cover_mid[i] == null) return code;
-    var wolken = Math.max(h.cloud_cover_low[i], h.cloud_cover_mid[i]);
-    return Math.min(code, wolken < 20 ? 0 : wolken < 50 ? 1 : wolken < 80 ? 2 : 3);
+    if (code > 3 || !tag || !(sonne >= 900)) return code;
+    return Math.min(code, sonne >= 2700 && wolken < 30 ? 0 : 1);
+  }
+  function stundenCode(m, i, code, regen) {
+    var h = m.h;
+    if (i < 0 || i >= h.time.length) return wetterCode(code, false, regen);
+    return wetterCode(code, h.is_day[i], regen, h.sunshine_duration && h.sunshine_duration[i], h.cloud_cover && h.cloud_cover[i]);
   }
   function tagesCode(d, i) {
     var code = d.weather_code[i];
     if (code >= 51 && d.precipitation_sum[i] >= 0.5) return code;
     if (code >= 51) code = 3;
     if (!d.daylight_duration || !d.sunshine_duration || d.sunshine_duration[i] == null || !d.daylight_duration[i]) return d.weather_code[i];
-    var a = d.sunshine_duration[i] / d.daylight_duration[i];
-    return Math.min(code, a >= 0.6 ? 0 : a >= 0.35 ? 1 : a >= 0.15 ? 2 : 3);
+    var a = d.sunshine_duration[i] / d.daylight_duration[i], wolken = d.cloud_cover_mean ? d.cloud_cover_mean[i] : 100;
+    return Math.min(code, a >= 0.75 && wolken < 30 ? 0 : a >= 0.3 ? 1 : a >= 0.1 ? 2 : 3);
   }
-  // Karte: Gitterpunkte ohne Sonnenauf- und -untergang, daher Sonne nur, wenn sie wirklich scheint; sonst tiefe und mittlere Wolken
-  function kartenCode(code, tag, w) {
-    if (code >= 51 && w.regen < 0.1) code = 3;
-    if (code > 3) return code;
-    if (tag && w.sonne >= 900) return Math.min(code, w.sonne >= 2700 ? 0 : 1);
-    if (isNaN(w.tief) || isNaN(w.mittel)) return code;
-    var wolken = Math.max(w.tief, w.mittel);
-    return Math.min(code, wolken < 20 ? 0 : wolken < 50 ? 1 : wolken < 80 ? 2 : 3);
-  }
+  // Karte: gleiche Regel mit den Werten des Gitterpunkts (NaN = fehlt, dann bleibt der Modellcode)
+  function kartenCode(code, tag, w) { return wetterCode(code, tag, w.regen, w.sonne, w.wolken); }
   function aktuellCode(m) { return stundenCode(m, m.idx + 1 < m.h.time.length ? m.idx + 1 : m.idx, m.c.weather_code, m.c.precipitation); }
 
   // ---------- Daten holen ----------
   function url(o) {
     return METEO + '?latitude=' + o.lat + '&longitude=' + o.lon +
       '&current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m' +
-      '&hourly=temperature_2m,weather_code,is_day,precipitation,sunshine_duration,cloud_cover_low,cloud_cover_mid' +
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunshine_duration,daylight_duration,precipitation_sum,wind_speed_10m_max,sunrise,sunset' +
+      '&hourly=temperature_2m,weather_code,is_day,precipitation,sunshine_duration,cloud_cover' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunshine_duration,daylight_duration,cloud_cover_mean,precipitation_sum,wind_speed_10m_max,sunrise,sunset' +
       '&minutely_15=precipitation&forecast_minutely_15=8&forecast_days=8&timezone=auto&wind_speed_unit=kmh&models=best_match';
   }
   function laden(erneut) {
