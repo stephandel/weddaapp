@@ -98,12 +98,41 @@
   function symbol(art) { return WetterSymbol(art); }
   function symbolFuerCode(code, tag) { return symbol(codeInfo(code, tag)[0]); }
 
+  // ---------- Symbol nach tatsächlichem Wetter ----------
+  // weather_code zählt hohe, dünne Schleierwolken als „bedeckt“, setzt Regen auch bei 0,0 mm und nimmt beim Tag die schlimmste Stunde.
+  // Deshalb nur aufhellen, nie verdüstern: Regen nur mit Menge, Wolken nach Sonnenscheindauer (tags) bzw. tiefen und mittleren Wolken (nachts).
+  function minuten(s) { var t = /(\d+)-(\d+)-(\d+)T(\d+):(\d+)/.exec(s); return Date.UTC(+t[1], t[2] - 1, +t[3], +t[4], +t[5]) / 60000; }
+  function stundenCode(m, i, code, regen) {
+    var h = m.h, d = m.d;
+    if (code >= 51 && regen < 0.1) code = 3;
+    if (code > 3 || i < 0 || i >= h.time.length) return code;
+    var tagIdx = d.time.indexOf(h.time[i].slice(0, 10)), t = minuten(h.time[i]);
+    // Sonnenstunde nur, wenn die ganze Stunde davor und danach hell ist (Bezug des Stundenwerts ist so egal)
+    if (tagIdx >= 0 && d.sunrise[tagIdx] && d.sunset[tagIdx] && t - 60 >= minuten(d.sunrise[tagIdx]) && t + 60 <= minuten(d.sunset[tagIdx])) {
+      if (!h.sunshine_duration || h.sunshine_duration[i] == null) return code;
+      var a = h.sunshine_duration[i] / 3600;
+      return Math.min(code, a >= 0.75 ? 0 : a >= 0.25 ? 1 : 3);
+    }
+    if (!h.cloud_cover_low || !h.cloud_cover_mid || h.cloud_cover_low[i] == null || h.cloud_cover_mid[i] == null) return code;
+    var wolken = Math.max(h.cloud_cover_low[i], h.cloud_cover_mid[i]);
+    return Math.min(code, wolken < 20 ? 0 : wolken < 50 ? 1 : wolken < 80 ? 2 : 3);
+  }
+  function tagesCode(d, i) {
+    var code = d.weather_code[i];
+    if (code >= 51 && d.precipitation_sum[i] >= 0.5) return code;
+    if (code >= 51) code = 3;
+    if (!d.daylight_duration || !d.sunshine_duration || d.sunshine_duration[i] == null || !d.daylight_duration[i]) return d.weather_code[i];
+    var a = d.sunshine_duration[i] / d.daylight_duration[i];
+    return Math.min(code, a >= 0.6 ? 0 : a >= 0.35 ? 1 : a >= 0.15 ? 2 : 3);
+  }
+  function aktuellCode(m) { return stundenCode(m, m.idx + 1 < m.h.time.length ? m.idx + 1 : m.idx, m.c.weather_code, m.c.precipitation); }
+
   // ---------- Daten holen ----------
   function url(o) {
     return METEO + '?latitude=' + o.lat + '&longitude=' + o.lon +
       '&current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m' +
-      '&hourly=temperature_2m,weather_code,is_day,precipitation' +
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunshine_duration,precipitation_sum,wind_speed_10m_max,sunrise,sunset' +
+      '&hourly=temperature_2m,weather_code,is_day,precipitation,sunshine_duration,cloud_cover_low,cloud_cover_mid' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunshine_duration,daylight_duration,precipitation_sum,wind_speed_10m_max,sunrise,sunset' +
       '&minutely_15=precipitation&forecast_minutely_15=8&forecast_days=8&timezone=auto&wind_speed_unit=kmh&models=best_match';
   }
   function laden(erneut) {
@@ -187,7 +216,7 @@
     return '<p class="quellen-zeile">Wetterdaten: Open-Meteo.com (CC BY 4.0) · Radar: RainViewer · Karte: © OpenStreetMap-Mitwirkende, OpenTopoMap (CC BY-SA)</p>';
   }
   function aktuellModul(m) {
-    var c = m.c, info = codeInfo(c.weather_code, c.is_day);
+    var c = m.c, info = codeInfo(aktuellCode(m), c.is_day);
     var w = windEinheit();
     return '<article class="kachel k-gross aktuell-kachel" aria-label="Aktuell"><div class="aktuell">' +
       '<div class="akt-links"><div class="akt-sym">' + symbol(info[0]) + '</div><div class="hero">' + esc(grad(c.temperature_2m)) + '</div></div>' +
@@ -205,7 +234,7 @@
     var spalten = '';
     for (var s = 0; s < 3; s++) {
       var i = m.idx + 1 + s * 6; if (i >= m.h.time.length) break;
-      var info = codeInfo(m.h.weather_code[i], m.h.is_day[i]);
+      var info = codeInfo(stundenCode(m, i, m.h.weather_code[i], m.h.precipitation[i]), m.h.is_day[i]);
       spalten += '<div class="stunde" aria-label="' + stundeText(m.h.time[i]) + ' Uhr, ' + esc(info[1]) + ', ' + grad(m.h.temperature_2m[i]) + '">' +
         '<span class="uhr">' + stundeText(m.h.time[i]) + ' Uhr</span><span class="wsym-box">' + symbol(info[0]) + '</span>' +
         '<span class="temp">' + esc(grad(m.h.temperature_2m[i])) + '</span><span class="mm">' + zahl(m.h.precipitation[i], 1) + ' mm</span></div>';
@@ -215,7 +244,7 @@
   function tageModul(m) {
     var d = m.d, wEin = windEinheit().name, zeilen = '';
     for (var i = 0; i < d.time.length; i++) {
-      var info = codeInfo(d.weather_code[i], 1), dt = datumTeile(d.time[i]);
+      var info = codeInfo(tagesCode(d, i), 1), dt = datumTeile(d.time[i]);
       var sonne = d.sunshine_duration && d.sunshine_duration[i] != null ? zahl(d.sunshine_duration[i] / 3600, 1) + ' h Sonne' : '';
       var name = i === 0 ? 'Heute' : wochentag(d.time[i]);
       zeilen += '<div class="tag" role="row" aria-label="' + name + ', ' + esc(info[1]) + '">' +
@@ -447,7 +476,7 @@
       temp: '–', art: 'wolke', wind: '–', regen: '–', sonne: '–', text: ''
     };
     if (m) {
-      var info = codeInfo(m.c.weather_code, m.c.is_day);
+      var info = codeInfo(aktuellCode(m), m.c.is_day);
       i.temp = grad(m.c.temperature_2m); i.art = info[0]; i.text = info[1];
       i.wind = wind(m.c.wind_speed_10m) + ' ' + windEinheit().name + ' ' + RICHTUNG_KURZ[Math.round(m.c.wind_direction_10m / 45) % 8];
       i.regen = zahl(m.d.precipitation_sum[0], 1) + ' mm';
