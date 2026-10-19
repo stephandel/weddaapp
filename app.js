@@ -1,6 +1,6 @@
 /* app.js – WeddaApp 0.9.0
    Reiter: Wetter (Startseite mit 4 Modulen), Graphs (meteogramm.js), Kamera (Teilen-Bildschirm), Rad/Sat (wpkarte.js, dazu Karten), Mehr.
-   Daten: Open-Meteo (best_match). Gemerkt wird nur im Browser (localStorage). */
+   Daten: Open-Meteo (best_match), in Deutschland Stundenwerte und Messung vom DWD über Bright Sky (dwd.js). Gemerkt wird nur im Browser (localStorage). */
 (function () {
   'use strict';
 
@@ -127,16 +127,19 @@
   function url(o) {
     return METEO + '?latitude=' + o.lat + '&longitude=' + o.lon +
       '&current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m' +
-      '&hourly=temperature_2m,weather_code,is_day,precipitation,sunshine_duration,cloud_cover' +
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunshine_duration,daylight_duration,cloud_cover_mean,precipitation_sum,wind_speed_10m_max,sunrise,sunset' +
+      '&hourly=temperature_2m,weather_code,is_day,precipitation,precipitation_probability,sunshine_duration,cloud_cover' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunshine_duration,daylight_duration,cloud_cover_mean,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset' +
       '&minutely_15=precipitation&forecast_minutely_15=8&forecast_days=8&timezone=auto&wind_speed_unit=kmh&models=best_match';
   }
   function laden(erneut) {
     status = daten && !erneut ? 'ok' : 'laden';
     if (!daten) zeichnen();
     var gemerkt = speicher.lesen('daten-' + ort.id, null);
-    return fetch(url(ort)).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (j) {
-      daten = { ort: ort.id, roh: j, geholt: Date.now() };
+    // DWD parallel; fehlt es (Ausland, Bright Sky gestört), bleibt alles Open-Meteo, ohne Meldung
+    var dwd = window.WeddaDWD ? WeddaDWD.holen(ort) : Promise.resolve(null);
+    var om = fetch(url(ort)).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    return Promise.all([om, dwd]).then(function (r) {
+      daten = { ort: ort.id, roh: r[0], dwd: r[1], geholt: Date.now() };
       speicher.schreiben('daten-' + ort.id, daten);
       status = 'ok'; offline = false; zeichnen(); hinweis('');
     }).catch(function () {
@@ -155,7 +158,7 @@
   }
   function aufbereiten() {
     if (!daten || daten.ort !== ort.id || !daten.roh || !daten.roh.current) return null;
-    var j = daten.roh, c = j.current, h = j.hourly, d = j.daily;
+    var j = window.WeddaDWD && daten.dwd ? WeddaDWD.einmischen(daten.roh, daten.dwd) : daten.roh, c = j.current, h = j.hourly, d = j.daily;
     var jetzt = c.time, std = jetzt.slice(0, 13) + ':00';
     var idx = h.time.indexOf(std); if (idx < 0) idx = 0;
     return { j: j, c: c, h: h, d: d, jetzt: jetzt, idx: idx, offset: j.utc_offset_seconds || 0 };
@@ -209,7 +212,7 @@
     return '<div class="kachel zustand">' + Ikon(ik) + '<p><b>' + esc(titel) + '</b><br>' + esc(text) + '</p>' + (knopf || '') + '</div>';
   }
   function quellenZeile() {
-    return '<p class="quellen-zeile">Wetterdaten: Open-Meteo.com (CC BY 4.0) · Radar: RainViewer · Karte: © OpenStreetMap-Mitwirkende, OpenTopoMap (CC BY-SA)</p>';
+    return '<p class="quellen-zeile">Wetterdaten: Open-Meteo.com (CC BY 4.0)' + (daten && daten.dwd ? ', DWD über Bright Sky (CC BY 4.0)' : '') + ' · Radar: RainViewer · Karte: © OpenStreetMap-Mitwirkende, OpenTopoMap (CC BY-SA)</p>';
   }
   function aktuellModul(m) {
     var c = m.c, info = codeInfo(aktuellCode(m), c.is_day);
@@ -224,16 +227,18 @@
       '<div><dt>Regen</dt><dd>' + zahl(c.precipitation, 1) + ' <span class="einheit">mm</span></dd></div>' +
       '<div><dt>Feuchte</dt><dd>' + zahl(c.relative_humidity_2m) + ' <span class="einheit">%</span></dd></div></dl>' +
       '<div class="rose">' + rose(c.wind_direction_10m) + '<span class="klein">' + esc(himmelsrichtung(c.wind_direction_10m)) + 'wind</span></div></div></div>' +
-      '<p class="klein stand">' + (offline ? 'Offline · Stand ' + stand(daten.geholt) : 'Stand ' + uhrzeit(m.jetzt) + ' Uhr') + '</p></article>';
+      '<p class="klein stand">' + (offline ? 'Offline · Stand ' + stand(daten.geholt) : 'Stand ' + uhrzeit(m.jetzt) + ' Uhr') +
+      (m.j._dwd && m.j._dwd.messung ? '<br>Gemessen: Station ' + esc(m.j._dwd.messung.station) + ', ' + esc(m.j._dwd.messung.uhr) + ' Uhr' : '') + '</p></article>';
   }
   function stundenModul(m) {
     var spalten = '';
     for (var s = 0; s < 3; s++) {
       var i = m.idx + 1 + s * 6; if (i >= m.h.time.length) break;
       var info = codeInfo(stundenCode(m, i, m.h.weather_code[i], m.h.precipitation[i]), m.h.is_day[i]);
-      spalten += '<div class="stunde" aria-label="' + stundeText(m.h.time[i]) + ' Uhr, ' + esc(info[1]) + ', ' + grad(m.h.temperature_2m[i]) + '">' +
+      var pp = m.h.precipitation_probability && m.h.precipitation_probability[i];
+      spalten += '<div class="stunde" aria-label="' + stundeText(m.h.time[i]) + ' Uhr, ' + esc(info[1]) + ', ' + grad(m.h.temperature_2m[i]) + (pp != null ? ', Regenwahrscheinlichkeit ' + zahl(pp) + ' %' : '') + '">' +
         '<span class="uhr">' + stundeText(m.h.time[i]) + ' Uhr</span><span class="wsym-box">' + symbol(info[0]) + '</span>' +
-        '<span class="temp">' + esc(grad(m.h.temperature_2m[i])) + '</span><span class="mm">' + zahl(m.h.precipitation[i], 1) + ' mm</span></div>';
+        '<span class="temp">' + esc(grad(m.h.temperature_2m[i])) + '</span><span class="mm">' + zahl(m.h.precipitation[i], 1) + ' mm</span>' + (pp != null ? '<span class="mm">' + zahl(pp) + ' %</span>' : '') + '</div>';
     }
     return '<article class="kachel k-mittel" aria-label="Stunden"><h2 class="kachel-kopf">' + Ikon('calendar') + 'Nächste Stunden</h2><div class="stunden">' + spalten + '</div></article>';
   }
@@ -243,11 +248,12 @@
       var info = codeInfo(tagesCode(d, i), 1), dt = datumTeile(d.time[i]);
       var sonne = d.sunshine_duration && d.sunshine_duration[i] != null ? zahl(d.sunshine_duration[i] / 3600, 1) + ' h Sonne' : '';
       var name = i === 0 ? 'Heute' : wochentag(d.time[i]);
+      var pp = d.precipitation_probability_max && d.precipitation_probability_max[i] != null ? ' <span class="pp">· ' + zahl(d.precipitation_probability_max[i]) + '&nbsp;%</span>' : '';
       zeilen += '<div class="tag" role="row" aria-label="' + name + ', ' + esc(info[1]) + '">' +
         '<span class="name">' + name + '<small>' + dt.t + '.' + dt.m + '.</small></span>' +
         '<span class="wsym-box" title="' + esc(info[1]) + '">' + symbol(info[0]) + '</span>' +
         '<span class="t">' + esc(grad(d.temperature_2m_max[i])) + ' <span>' + esc(grad(d.temperature_2m_min[i])) + '</span></span>' +
-        '<span class="sr"><span>' + sonne + '</span><span>' + zahl(d.precipitation_sum[i], 1) + ' mm</span></span>' +
+        '<span class="sr"><span>' + sonne + '</span><span>' + zahl(d.precipitation_sum[i], 1) + ' mm' + pp + '</span></span>' +
         '<span class="w">' + wind(d.wind_speed_10m_max[i]) + ' ' + esc(wEin) + '</span></div>';
     }
     return '<article class="kachel k-gross" aria-label="Vorhersage 8 Tage"><h2 class="kachel-kopf">' + Ikon('calendar') + '8-Tage-Vorhersage</h2>' +
@@ -386,7 +392,7 @@
       '<section class="abschnitt"><h2>Darstellung</h2><div class="gruppe"><div class="einstell"><span id="windLabel">Wind in</span><div class="segment" role="radiogroup" aria-labelledby="windLabel">' + seg + '</div></div>' +
       '<div class="einstell"><span>Temperatur in °C. Hell und Dunkel folgen deinem iPhone.</span></div></div></section>' +
       '<section class="abschnitt"><h2>Quellen</h2><div class="gruppe"><ul class="quellen-liste">' +
-      '<li>Wetterdaten: Open-Meteo.com (CC BY 4.0)</li><li>Karte: © OpenStreetMap-Mitwirkende, OpenTopoMap (CC BY-SA)</li><li>Radar: RainViewer</li><li>Satellit: EUMETSAT</li></ul></div></section>' +
+      '<li>Wetterdaten: Open-Meteo.com (CC BY 4.0)</li><li>Wetterdaten Deutschland (Vorhersage und Messung): Deutscher Wetterdienst über Bright Sky (CC BY 4.0)</li><li>Karte: © OpenStreetMap-Mitwirkende, OpenTopoMap (CC BY-SA)</li><li>Radar: RainViewer</li><li>Satellit: EUMETSAT</li></ul></div></section>' +
       '<p class="quellen-zeile">' + APP_NAME + ' ' + VERSION + ' · Wetterdaten: Open-Meteo.com (CC BY 4.0)</p>';
     if (fokus === 'suchfeld') { var f = $('#suchfeld'); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }
   }
