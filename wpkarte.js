@@ -7,7 +7,7 @@
                  Zeitleiste über die letzten 2 Stunden in 10-Minuten-Schritten.
    Braucht Leaflet (global `L`). Ohne Netz (offline) zeigt er die gespeicherte Ansicht aus snapshot/karte.json.
 
-   var k = WetterKarte.einbauen({ ziel, modus, ort, orte, offset, symbol(code, istTag), offline, snapshot, merk(k, v), beiZeit(text) });
+   var k = WetterKarte.einbauen({ ziel, modus, ort, orte, offset, symbol(code, istTag, werte), offline, snapshot, merk(k, v), beiZeit(text) });
    k.zeigeOrt(ort, orte); k.sichtbar(); k.verlassen(); k.abbauen();
    =========================================================================== */
 (function (global) {
@@ -21,7 +21,7 @@
   var WMS = 'https://view.eumetsat.int/geoserver/wms';
   var RAINVIEWER = 'https://api.rainviewer.com/public/weather-maps.json';
   var METEO = 'https://api.open-meteo.com/v1/forecast';
-  var FELDER = 'temperature_2m,precipitation,weather_code,is_day,wind_speed_10m,wind_direction_10m,cloud_cover,pressure_msl';
+  var FELDER = 'temperature_2m,precipitation,weather_code,is_day,wind_speed_10m,wind_direction_10m,cloud_cover,pressure_msl,sunshine_duration,cloud_cover_low,cloud_cover_mid';
   var NX = 7, NY = 6;                       // Gitterpunkte je Richtung
   var TAGE = 7;
   var SCHRITT = 10, VERZUG = 50, BILDER = 13; // Rad/Sat: Minuten, Minuten, Anzahl
@@ -117,7 +117,7 @@
     var liste = Array.isArray(antwort) ? antwort : [antwort];
     if (!liste.length || !liste[0].hourly) return null;
     var nx = lons.length, ny = lats.length, zeiten = liste[0].hourly.time, nt = zeiten.length;
-    var namen = { temp: 'temperature_2m', regen: 'precipitation', code: 'weather_code', tag: 'is_day', wind: 'wind_speed_10m', dir: 'wind_direction_10m', wolken: 'cloud_cover', druck: 'pressure_msl' };
+    var namen = { temp: 'temperature_2m', regen: 'precipitation', code: 'weather_code', tag: 'is_day', wind: 'wind_speed_10m', dir: 'wind_direction_10m', wolken: 'cloud_cover', druck: 'pressure_msl', sonne: 'sunshine_duration', tief: 'cloud_cover_low', mittel: 'cloud_cover_mid' };
     var felder = {}, k;
     for (k in namen) felder[k] = new Float32Array(nx * ny * nt);
     for (var p = 0; p < liste.length && p < nx * ny; p++) {
@@ -606,7 +606,9 @@
       if (!gitter || !frames.length) return '';
       var temp = wertBi(gitter, 'temp', k.lat, k.lon, t), code = wertNah(gitter, 'code', k.lat, k.lon, t), tag = wertNah(gitter, 'tag', k.lat, k.lon, t);
       if (isNaN(temp) || isNaN(code)) return '';
-      return '<div class="wk-w">' + symbol(Math.round(code), tag >= 0.5) + '<b>' + Math.round(temp) + '°C</b></div>';
+      // dritter Wert für Apps, die das Symbol nach Sonne und tiefen/mittleren Wolken statt nach rohem Wettercode wählen (NaN = fehlt, z. B. im Snapshot)
+      var w = { regen: wertNah(gitter, 'regen', k.lat, k.lon, t), sonne: wertNah(gitter, 'sonne', k.lat, k.lon, t), tief: wertNah(gitter, 'tief', k.lat, k.lon, t), mittel: wertNah(gitter, 'mittel', k.lat, k.lon, t) };
+      return '<div class="wk-w">' + symbol(Math.round(code), tag >= 0.5, w) + '<b>' + Math.round(temp) + '°C</b></div>';
     }
 
     // ---------- Anzeigen ----------

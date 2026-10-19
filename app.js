@@ -125,6 +125,15 @@
     var a = d.sunshine_duration[i] / d.daylight_duration[i];
     return Math.min(code, a >= 0.6 ? 0 : a >= 0.35 ? 1 : a >= 0.15 ? 2 : 3);
   }
+  // Karte: Gitterpunkte ohne Sonnenauf- und -untergang, daher Sonne nur, wenn sie wirklich scheint; sonst tiefe und mittlere Wolken
+  function kartenCode(code, tag, w) {
+    if (code >= 51 && w.regen < 0.1) code = 3;
+    if (code > 3) return code;
+    if (tag && w.sonne >= 900) return Math.min(code, w.sonne >= 2700 ? 0 : 1);
+    if (isNaN(w.tief) || isNaN(w.mittel)) return code;
+    var wolken = Math.max(w.tief, w.mittel);
+    return Math.min(code, wolken < 20 ? 0 : wolken < 50 ? 1 : wolken < 80 ? 2 : 3);
+  }
   function aktuellCode(m) { return stundenCode(m, m.idx + 1 < m.h.time.length ? m.idx + 1 : m.idx, m.c.weather_code, m.c.precipitation); }
 
   // ---------- Daten holen ----------
@@ -358,7 +367,7 @@
     karten[radsatModus] = WetterKarte.einbauen({
       ziel: '#karte', modus: radsatModus, ort: { id: ort.id, name: ort.name, lat: ort.lat, lon: ort.lon },
       orte: sortierteOrte().map(function (o) { return { id: o.id, name: o.name, lat: o.lat, lon: o.lon }; }), offset: off,
-      symbol: function (code, tag) { return symbolFuerCode(code, tag); },
+      symbol: function (code, tag, w) { return symbolFuerCode(w ? kartenCode(code, tag, w) : code, tag); },
       offline: false,
       merk: function (k, v) { if (v === undefined) return speicher.lesen('wk-' + k, null); speicher.schreiben('wk-' + k, v); return null; }
     });
