@@ -460,7 +460,7 @@
   function pruefeSchrift() {
     var probe = document.createElement('div'); probe.style.cssText = 'position:absolute;visibility:hidden;font-size:1rem;width:1em';
     document.body.appendChild(probe); var px = probe.getBoundingClientRect().width; probe.remove();
-    document.documentElement.classList.toggle('schrift-gross', px >= 20.8);
+    document.documentElement.classList.toggle('schrift-gross', px >= 20.7);   // 130 % = 20,8 px, Browser messen 20,797
   }
 
   // ---------- Teilen-Bildschirm ----------
