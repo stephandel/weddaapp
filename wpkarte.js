@@ -336,12 +336,12 @@
       if (n < 2) { el.ticks.innerHTML = ''; el.tage.innerHTML = ''; return; }
       var proSchritt = breite / (n - 1);
       if (MODUS === 'karten') {
-        var schritt = [3, 6, 12, 24].filter(function (s) { return s * proSchritt >= 38; })[0] || 24;
+        var schritt = [3, 6, 12, 24].filter(function (s) { return s * proSchritt >= 38; })[0]; // passt nicht einmal 24 h: keine Uhrzeiten, nur Tage
         var heute = ortszeit(Date.now()).toISOString().slice(0, 10), tagStart = {}, tagEnde = {};
         for (i = 0; i < n; i++) {
           var d = ortszeit(frames[i]), st = d.getUTCHours(), tag = d.toISOString().slice(0, 10);
           if (tagStart[tag] == null) tagStart[tag] = i; tagEnde[tag] = i;
-          if (st % schritt === 5 % schritt) html += '<span style="left:' + (i / (n - 1) * 100).toFixed(2) + '%">' + pad(st) + ':00</span>';
+          if (schritt && st % schritt === 5 % schritt) html += '<span style="left:' + (i / (n - 1) * 100).toFixed(2) + '%">' + pad(st) + ':00</span>';
         }
         Object.keys(tagStart).forEach(function (tag) {
           var mitte = (tagStart[tag] + tagEnde[tag]) / 2, d2 = ortszeit(frames[tagStart[tag]]);
@@ -520,7 +520,7 @@
       var best = rainviewer.frames[0];
       rainviewer.frames.forEach(function (f) { if (Math.abs(f.time * 1000 - zeit) < Math.abs(best.time * 1000 - zeit)) best = f; });
       if (Math.abs(best.time * 1000 - zeit) > 20 * 60000) return null;
-      return L.tileLayer(rainviewer.host + best.path + '/256/{z}/{x}/{y}/2/1_1.png', { opacity: 0, zIndex: 4, tileSize: 256 });
+      return L.tileLayer(rainviewer.host + best.path + '/256/{z}/{x}/{y}/2/1_1.png', { opacity: 0, zIndex: 4, tileSize: 256, maxNativeZoom: 7 }); // RainViewer liefert ab Zoom 8 nur „Zoom Level Not Supported“
     }
     // Für einen Zeitpunkt alle nötigen Bildebenen anlegen (einmal) – Rückgabe { sat, satsw, regen, radar }
     // satsw = Infrarot 10,5 µm in Graustufen (weiß = kalte, hohe Wolken), das klassische Schwarz-Weiß-Bild der alten WeatherPro
