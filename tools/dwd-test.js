@@ -13,10 +13,13 @@ const om = o => fetch('https://api.open-meteo.com/v1/forecast?latitude=' + o.lat
   '&forecast_days=8&timezone=auto&wind_speed_unit=kmh&models=best_match').then(r => r.json());
 
 let fehler = 0;
+// Bleibt ein Test für immer offen, endet Node sonst stumm mit Exit-Code 0
+process.on('beforeExit', () => { console.log('FEHL Ein Test ist nie fertig geworden (hängt)'); process.exit(1); });
 async function test(name, f) {
   try { await f(); console.log('ok   ' + name); } catch (e) { fehler++; console.log('FEHL ' + name + '\n     ' + e.message); }
 }
 const nah = (a, b, eps) => Math.abs(a - b) <= (eps || 1e-6);
+const sek = (j, t) => Date.parse(t + ':00Z') / 1000 - (j.utc_offset_seconds || 0);   // Open-Meteo-Ortszeit → Weltzeit
 
 (async () => {
   const [jM, dM] = await Promise.all([om(MANNHEIM), DWD.holen(MANNHEIM)]);
@@ -32,7 +35,7 @@ const nah = (a, b, eps) => Math.abs(a - b) <= (eps || 1e-6);
   await test('Mannheim: Stundenwerte kommen vom DWD', () => {
     let n = 0;
     neu.hourly.time.forEach((t, i) => {
-      const x = dM.vorhersage.stunden[t]; if (!x) return; n++;
+      const x = dM.vorhersage.stunden[sek(jM, t)]; if (!x) return; n++;
       assert.strictEqual(neu.hourly.temperature_2m[i], x[0], 'Temperatur ' + t);
       if (x[2] != null) assert.strictEqual(neu.hourly.sunshine_duration[i], x[2] * 60, 'Sonne ' + t);
       if (x[4] != null) assert.strictEqual(neu.hourly.precipitation_probability[i], x[4], 'Wahrscheinlichkeit ' + t);
@@ -85,9 +88,38 @@ const nah = (a, b, eps) => Math.abs(a - b) <= (eps || 1e-6);
     assert.strictEqual(await DWD.holen(MANNHEIM, () => Promise.resolve({ ok: true, json: () => Promise.resolve({}) })), null);
   });
 
+  await test('Bright Sky hängt beim Lesen der Antwort: nach Zeitlimit null', async () => {
+    const start = Date.now();
+    const d = await DWD.holen(MANNHEIM, () => Promise.resolve({ ok: true, json: () => new Promise(() => { }) }));
+    assert.strictEqual(d, null); assert(Date.now() - start < 10000, 'dauerte ' + (Date.now() - start) + ' ms');
+  });
+
+  await test('Kaputte Antwort (Zeitstempel fehlt): null statt Absturz', async () => {
+    const kaputt = { sources: [{ id: 1, observation_type: 'forecast', distance: 1000 }], weather: [{ source_id: 1, temperature: 5, timestamp: null }] };
+    assert.strictEqual(await DWD.holen(MANNHEIM, () => Promise.resolve({ ok: true, json: () => Promise.resolve(kaputt) })), null);
+  });
+
+  await test('Zuordnung über Weltzeit, auch über die Zeitumstellung (Rohdaten von Bright Sky)', async () => {
+    const roh = await fetch('https://api.brightsky.dev/weather?lat=49.4875&lon=8.466&max_dist=25000&tz=Europe/Berlin&date=' + jM.daily.time[0] + '&last_date=' + jM.daily.time[7] + 'T23:59').then(r => r.json());
+    const fc = new Set(roh.sources.filter(s => s.observation_type === 'forecast').map(s => s.id));
+    const proSek = {}; roh.weather.forEach(x => { if (fc.has(x.source_id) && x.temperature != null) proSek[Date.parse(x.timestamp) / 1000] = x; });
+    let n = 0;
+    neu.hourly.time.forEach((t, i) => {
+      const x = proSek[Date.parse(t + ':00Z') / 1000 - jM.utc_offset_seconds]; if (!x) return; n++;
+      assert.strictEqual(neu.hourly.temperature_2m[i], x.temperature, 'Temperatur ' + t);
+      if (x.sunshine != null) assert.strictEqual(neu.hourly.sunshine_duration[i], x.sunshine * 60, 'Sonne ' + t);
+    });
+    assert(n >= 24 * 7, 'nur ' + n + ' Stunden');
+    neu.daily.time.forEach((tag, ti) => {
+      const rr = neu.hourly.time.map((t, i) => t.slice(0, 10) === tag ? proSek[Date.parse(t + ':00Z') / 1000 - jM.utc_offset_seconds] : null).filter(Boolean);
+      if (rr.length < 24) return;
+      assert(nah(neu.daily.precipitation_sum[ti], rr.reduce((s, x) => s + (x.precipitation || 0), 0), 0.051), 'Regen ' + tag);
+    });
+  });
+
   await test('Tagescode: Regen nur mit Menge, trocken → „bedeckt“ zum Aufhellen', () => {
     const t = jM.daily.time[2], stunden = {};
-    jM.hourly.time.forEach(z => { if (z.slice(0, 10) === t) stunden[z] = [10, 0, 0, 100, 5, 61]; });
+    jM.hourly.time.forEach(z => { if (z.slice(0, 10) === t) stunden[sek(jM, z)] = [10, 0, 0, 100, 5, 61]; });
     let d = DWD.einmischen(jM, { vorhersage: { station: 'X', distanz: 1, stunden } });
     assert.strictEqual(d.daily.weather_code[2], jM.daily.weather_code[2] === 45 || jM.daily.weather_code[2] === 48 ? jM.daily.weather_code[2] : 3);
     Object.keys(stunden)[12] && (stunden[Object.keys(stunden)[12]] = [10, 1.2, 0, 100, 80, 63]);

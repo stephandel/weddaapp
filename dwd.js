@@ -44,7 +44,7 @@
   }
 
   // Vorhersage auf das Nötige kürzen (passt so in localStorage): nur Zeilen von Vorhersagestationen bis MAX_DIST
-  // stunden['JJJJ-MM-TTTHH:MM'] = [Temperatur, Regen mm, Sonne min, Wolken %, Regenwahrscheinlichkeit %, WMO-Code]
+  // stunden[Weltzeit in Sekunden] = [Temperatur, Regen mm, Sonne min, Wolken %, Regenwahrscheinlichkeit %, WMO-Code]
   function vorhersageKurz(antw) {
     var quellen = {}, naechste = null;
     ((antw && antw.sources) || []).forEach(function (s) {
@@ -54,7 +54,7 @@
     var stunden = {}, n = 0;
     ((antw && antw.weather) || []).forEach(function (x) {
       if (!quellen[x.source_id] || x.temperature == null) return;
-      stunden[x.timestamp.slice(0, 16)] = [x.temperature, x.precipitation, x.sunshine, x.cloud_cover, x.precipitation_probability, wmo(x.condition, x.icon, x.cloud_cover, x.precipitation)];
+      stunden[Date.parse(x.timestamp) / 1000] = [x.temperature, x.precipitation, x.sunshine, x.cloud_cover, x.precipitation_probability, wmo(x.condition, x.icon, x.cloud_cover, x.precipitation)];
       n++;
     });
     return n >= 24 ? { station: stationsName(naechste.station_name), distanz: naechste.distance, stunden: stunden } : null;
@@ -68,12 +68,14 @@
     };
   }
 
+  // Zeitlimit gilt, bis die ganze Antwort gelesen ist, nicht nur bis zu den Kopfzeilen
   function json(adresse, holer) {
-    var steuer = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var uhr = setTimeout(function () { if (steuer) steuer.abort(); }, ZEITLIMIT);
-    return holer(adresse, steuer ? { signal: steuer.signal } : {}).then(function (r) {
-      clearTimeout(uhr); if (!r.ok) throw new Error('Bright Sky: HTTP ' + r.status); return r.json();
-    }, function (e) { clearTimeout(uhr); throw e; });
+    var steuer = typeof AbortController !== 'undefined' ? new AbortController() : null, uhr;
+    var abbruch = new Promise(function (ok, nein) { uhr = setTimeout(function () { if (steuer) steuer.abort(); nein(new Error('Bright Sky: Zeitlimit')); }, ZEITLIMIT); });
+    var lesen = holer(adresse, steuer ? { signal: steuer.signal } : {}).then(function (r) {
+      if (!r.ok) throw new Error('Bright Sky: HTTP ' + r.status); return r.json();
+    });
+    return Promise.race([lesen, abbruch]).then(function (j) { clearTimeout(uhr); return j; }, function (e) { clearTimeout(uhr); throw e; });
   }
   // Liefert {vorhersage, messung} (jeweils gekürzt oder null) oder null, wenn es für den Ort nichts gibt. Wirft nie.
   function holen(o, holer) {
@@ -81,14 +83,14 @@
     if (!holer || !inReichweite(o)) return Promise.resolve(null);
     var q = 'lat=' + o.lat + '&lon=' + o.lon + '&max_dist=' + MAX_DIST + '&tz=' + encodeURIComponent(TZ);
     var heute = new Date();
-    var v = json(BRIGHTSKY + 'weather?' + q + '&date=' + isoDatum(heute) + '&last_date=' + isoDatum(new Date(heute.getTime() + 9 * 864e5)), holer).then(vorhersageKurz, function () { return null; });
-    var m = json(BRIGHTSKY + 'current_weather?' + q, holer).then(messungKurz, function () { return null; });
+    var v = json(BRIGHTSKY + 'weather?' + q + '&date=' + isoDatum(heute) + '&last_date=' + isoDatum(new Date(heute.getTime() + 9 * 864e5)), holer).then(vorhersageKurz).catch(function () { return null; });
+    var m = json(BRIGHTSKY + 'current_weather?' + q, holer).then(messungKurz).catch(function () { return null; });
     return Promise.all([v, m]).then(function (r) { return r[0] || r[1] ? { vorhersage: r[0], messung: r[1] } : null; });
   }
 
   function kopie(a) { return a ? a.slice() : []; }
   // Open-Meteo-Antwort j mit den DWD-Werten mischen. Gibt eine neue Antwort zurück (j bleibt unverändert) samt _dwd = {station, messung}.
-  // Die Zeitangaben von Open-Meteo (timezone=auto) und Bright Sky (tz=Europe/Berlin) sind für deutsche Orte dieselbe Ortszeit.
+  // Zuordnung über die Weltzeit: Open-Meteo beschriftet alle 8 Tage mit dem Versatz von jetzt (utc_offset_seconds), auch über die Zeitumstellung hinweg.
   function einmischen(j, dwd, jetzt) {
     if (!j || !j.hourly || !dwd) return j;
     var v = dwd.vorhersage, m = dwd.messung, info = {};
@@ -101,7 +103,7 @@
       ['temperature_2m', 'precipitation', 'sunshine_duration', 'cloud_cover', 'weather_code', 'precipitation_probability'].forEach(function (f) { h[f] = kopie(j.hourly[f]); });
       while (h.precipitation_probability.length < h.time.length) h.precipitation_probability.push(null);
       var ersetzt = h.time.map(function (t, i) {
-        var x = v.stunden[t]; if (!x) return false;
+        var x = v.stunden[Date.parse(t + ':00Z') / 1000 - (j.utc_offset_seconds || 0)]; if (!x) return false;
         h.temperature_2m[i] = x[0];
         if (x[1] != null) h.precipitation[i] = x[1];
         if (x[2] != null) h.sunshine_duration[i] = x[2] * 60;
