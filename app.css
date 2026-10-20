@@ -248,6 +248,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .studio-zu:active { opacity: .6; }
 .studio-wurzel { flex: 1; min-height: 0; position: relative; padding-bottom: var(--safe-bottom); }
 .studio-laedt { padding: var(--s6) var(--rand); text-align: center; color: var(--label-2); }
+.studio-laedt .button { margin-top: var(--s4); }
 
 /* ---------- breite Bildschirme (iPad) ---------- */
 @media (min-width: 768px) {

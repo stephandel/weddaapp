@@ -40,11 +40,11 @@ function server() {
 }
 
 /* ---------- fremde Dienste auf feste Antworten umleiten ---------- */
-async function umleiten(ctx) {
+async function umleiten(ctx, modus) {
   await ctx.route(u => /^https?:$/.test(u.protocol) && !u.href.startsWith(BASIS), route => {   // blob:-Adressen (Foto im Studio) nicht anfassen
     const u = new URL(route.request().url());
     const json = (text, status) => route.fulfill({ status: status || 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: text });
-    if (u.host === 'api.open-meteo.com') return json(OM);
+    if (u.host === 'api.open-meteo.com') return modus.omAus === 'langsam' ? setTimeout(() => route.abort(), 1500) : modus.omAus ? route.abort() : json(OM);
     if (u.host === 'api.brightsky.dev') return json('{"title":"Not Found"}', 404);
     return route.abort();
   });
@@ -53,14 +53,16 @@ async function umleiten(ctx) {
 async function neueSeite(b, o) {
   o = o || {};
   const ctx = await b.newContext({ viewport: { width: o.breite || 390, height: o.hoehe || 844 }, colorScheme: o.farbe || 'light', serviceWorkers: o.sw ? 'allow' : 'block' });
-  await umleiten(ctx);
+  const modus = { omAus: !!o.omAus };
+  await umleiten(ctx, modus);
+  if (o.engineSperren) await ctx.route('**/lib/kamera-studio/ks-engine.js', r => r.abort());
   const p = await ctx.newPage(), probleme = [];
   p.on('pageerror', e => probleme.push('JS: ' + e.message));
-  p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|access control|net::|abgewiesen/i.test(m.text())) probleme.push('Konsole: ' + m.text()); });
+  p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|access control|net::|abgewiesen|Load failed/i.test(m.text())) probleme.push('Konsole: ' + m.text()); });
   if (o.speicher) await ctx.addInitScript(s => { Object.keys(s).forEach(k => localStorage.setItem(k, s[k])); }, o.speicher);
   await p.goto(BASIS + (o.adresse || ''));
-  await p.waitForSelector('.aktuell-kachel', { timeout: 10000 });
-  return { ctx, p, probleme };
+  await p.waitForSelector(o.omAus ? '#leiste button' : '.aktuell-kachel', { timeout: 10000 });
+  return { ctx, p, probleme, modus };
 }
 const studioDa = p => p.evaluate(() => !document.getElementById('studio').hidden && !!document.querySelector('#ksWurzel .ks'));
 const inst = p => p.evaluate(() => { const r = document.querySelector('#ksWurzel .ks'), i = r && r._ksInst; return i ? { foto: !!i.quelle, wetter: i.wetter, variante: i.variante, optionen: i.optionen } : null; });
@@ -139,21 +141,21 @@ const inst = p => p.evaluate(() => { const r = document.querySelector('#ksWurzel
       await p.click('[data-tab="mehr"]'); await p.click('[data-zo="tab"]'); await p.click('[data-zp="1"]'); await p.click('[data-zs="symbolText"]');
       const erster = await p.$eval('#leiste button', x => ({ zugang: x.hasAttribute('data-zugang'), text: x.textContent }));
       pruefe('Tab-Leiste Platz 1 mit Symbol und Text', erster.zugang && erster.text === 'Wetterfoto', erster);
-      pruefe('Wahl gemerkt (gleiche Schlüssel wie im Studio)', await p.evaluate(() => localStorage.getItem('ks-nutzer-zugangOrt') === 'tab' && localStorage.getItem('ks-nutzer-zugangPlatz') === '1' && localStorage.getItem('ks-nutzer-zugangAussehen') === 'symbolText'));
+      pruefe('Wahl gemerkt (eigene Schlüssel wedda-wf-…, nicht die des Studios)', await p.evaluate(() => localStorage.getItem('wedda-wf-zugangOrt') === '"tab"' && localStorage.getItem('wedda-wf-zugangPlatz') === '"1"' && localStorage.getItem('wedda-wf-zugangAussehen') === '"symbolText"' && localStorage.getItem('ks-nutzer-zugangOrt') === null));
       await p.click('#wfZurueck');
       const zurueck = await p.$$eval('#leiste button', bs => bs.map(x => x.hasAttribute('data-zugang')));
-      pruefe('Zurücksetzen: wieder Platz 3', zurueck.indexOf(true) === 2 && await p.evaluate(() => localStorage.getItem('ks-nutzer-zugangOrt') === null), zurueck);
+      pruefe('Zurücksetzen: wieder Platz 3', zurueck.indexOf(true) === 2 && await p.evaluate(() => localStorage.getItem('wedda-wf-zugangOrt') === null), zurueck);
       pruefe('Keine Fehler in der Konsole', probleme.length === 0, probleme);
       await ctx.close();
     }
 
     console.log('3) Gemerkte Wahl beim Start, alte Wege, Direktlink');
     {
-      let r = await neueSeite(b, { speicher: { 'ks-nutzer-zugangOrt': 'kopf', 'ks-nutzer-zugangPlatz': 'rechts-innen', 'ks-nutzer-zugangAussehen': 'pille' } });
+      let r = await neueSeite(b, { speicher: { 'wedda-wf-zugangOrt': '"kopf"', 'wedda-wf-zugangPlatz': '"rechts-innen"', 'wedda-wf-zugangAussehen': '"pille"' } });
       pruefe('Gemerkte Wahl gilt beim Start (Kopfzeile rechts innen, Text-Knopf)', await r.p.evaluate(() => { const k = document.querySelector('#kopf .zugang-pille'); return !!k && k.nextElementSibling.id === 'kopfSuche' && k.textContent === 'Wetterfoto'; }));
       await r.ctx.close();
-      r = await neueSeite(b, { speicher: { 'ks-nutzer-zugangOrt': 'quatsch', 'ks-nutzer-zugangAussehen': 'pille' } });
-      pruefe('Ungültige Wahl fällt auf Platz 3 rund zurück (Text-Knopf passt nicht in die Leiste)', await r.p.evaluate(() => { const k = document.querySelectorAll('#leiste button')[2]; return k.hasAttribute('data-zugang') && k.classList.contains('zugang-rund'); }));
+      r = await neueSeite(b, { speicher: { 'wedda-wf-zugangOrt': '"quatsch"', 'wedda-wf-zugangAussehen': '"pille"', 'ks-nutzer-zugangOrt': 'kopf' } });
+      pruefe('Ungültige Wahl fällt auf Platz 3 rund zurück; Schlüssel des Konfigurators (ks-nutzer-…) wirken nicht', await r.p.evaluate(() => { const k = document.querySelectorAll('#leiste button')[2]; return k.hasAttribute('data-zugang') && k.classList.contains('zugang-rund'); }));
       await r.ctx.close();
       r = await neueSeite(b);
       const frueh = await r.p.evaluate(() => !window.KSStudio);
@@ -213,6 +215,62 @@ const inst = p => p.evaluate(() => { const r = document.querySelector('#ksWurzel
       pruefe('Offline: Studio lädt aus dem Speicher und öffnet', await studioDa(p));
       pruefe('Keine Fehler in der Konsole', probleme.length === 0, probleme);
       await ctx.close();
+    }
+
+    console.log('6) Funde der zweiten Meinung');
+    {
+      // Fokus zurück, auch wenn der Knopf inzwischen neu gezeichnet wurde
+      let r = await neueSeite(b, { speicher: { 'wedda-wf-zugangOrt': '"kachel"' } });
+      await r.p.waitForFunction(() => window.KSStudio);
+      let [fc] = await Promise.all([r.p.waitForEvent('filechooser'), r.p.click('.zugang-kachel [data-zugang]')]); await fc.setFiles(FOTO);
+      pruefe('Hintergrund gesperrt, solange das Wetterfoto offen ist', await r.p.evaluate(() => ['kopf', 'inhalt', 'leiste'].every(id => document.getElementById(id).hasAttribute('inert'))));
+      const alt = await r.p.evaluate(() => { window.__alt = document.querySelector('.zugang-kachel [data-zugang]'); window.dispatchEvent(new Event('online')); return true; });
+      await r.p.waitForFunction(() => !window.__alt.isConnected, null, { timeout: 5000 }).catch(() => {});
+      pruefe('Neue Wetterdaten bei offenem Studio: Foto bleibt', alt && (await inst(r.p)).foto);
+      await r.p.click('#studioZu');
+      pruefe('Fokus nach „Fertig“ auf dem neu gezeichneten Wetterfoto-Knopf', await r.p.evaluate(() => !window.__alt.isConnected && document.activeElement.hasAttribute('data-zugang') && document.activeElement.isConnected));
+      pruefe('Hintergrund nach dem Schließen wieder frei', await r.p.evaluate(() => !document.querySelector('[inert]')));
+      // Neuladen scheitert, während das Studio offen ist: gemerkte Werte bleiben im Studio
+      r.modus.omAus = 'langsam';   // Antwort kommt erst nach 1,5 s und scheitert dann; das Studio öffnet währenddessen
+      await r.p.evaluate(() => window.dispatchEvent(new Event('online')));
+      await r.p.click('#kopfTeilen');
+      const w0 = (await inst(r.p)).wetter;
+      await r.p.waitForTimeout(2200);
+      const w = (await inst(r.p)).wetter;
+      pruefe('Studio öffnet während des Neuladens: gemerkte Werte (7,7 °C)', w0 && w0.temp === 7.7, w0);
+      pruefe('Neuladen scheitert: Studio behält die gemerkten Werte', w && w.temp === 7.7, w);
+      // Esc mit offenem Blatt schließt nur das Blatt
+      await r.p.click('#studioZu');
+      [fc] = await Promise.all([r.p.waitForEvent('filechooser'), r.p.click('.zugang-kachel [data-zugang]')]); await fc.setFiles(FOTO);
+      await r.p.waitForFunction(() => [...document.querySelectorAll('#ksWurzel button')].some(x => /Dateiart/.test(x.textContent)), null, { timeout: 8000 }).catch(() => {});
+      await r.p.click('#ksWurzel button:has-text("Dateiart")');
+      await r.p.waitForTimeout(300);
+      const blatt = await r.p.evaluate(() => !!document.querySelector('#ksWurzel .ks-blatt'));
+      await r.p.keyboard.press('Escape'); await r.p.waitForTimeout(300);
+      pruefe('Esc mit offenem Blatt schließt nur das Blatt, nicht das Wetterfoto', blatt && await studioDa(r.p) && await r.p.evaluate(() => !document.querySelector('#ksWurzel .ks-blatt')), { blatt });
+      await r.p.keyboard.press('Escape'); await r.p.waitForTimeout(300);
+      pruefe('Zweites Esc schließt das Wetterfoto', !(await studioDa(r.p)));
+      pruefe('Keine Fehler in der Konsole', r.probleme.length === 0, r.probleme);
+      await r.ctx.close();
+      // Ohne Wetterdaten: Ortszeit mit Versatz statt UTC
+      r = await neueSeite(b, { omAus: true });
+      await r.p.waitForFunction(() => window.KSStudio);
+      await r.p.click('#kopfTeilen'); await r.p.waitForTimeout(300);
+      const z = await r.p.evaluate(() => { const w = document.querySelector('#ksWurzel .ks')._ksInst.wetter; return { zeit: w.zeit, temp: w.temp, h: new Date().getHours() }; });
+      pruefe('Ohne Wetterdaten: Ortszeit mit Versatz, keine Wetterwerte', /T\d\d:\d\d:00[+-]\d\d:\d\d$/.test(z.zeit) && +z.zeit.slice(11, 13) === z.h && z.temp === undefined, z);
+      await r.ctx.close();
+      // Studio-Datei fehlt: Meldung mit „Erneut versuchen“, danach klappt es, ohne doppelte Dateien
+      r = await neueSeite(b, { engineSperren: true });
+      await r.p.waitForTimeout(2500);   // Vorladen schlägt fehl
+      await r.p.click('#kopfTeilen');
+      await r.p.waitForSelector('#studioNochmal', { timeout: 5000 }).catch(() => {});
+      pruefe('Laden scheitert: Meldung mit „Erneut versuchen“', !!(await r.p.$('#studioNochmal')));
+      pruefe('Nach dem Fehlschlag keine halben Studio-Dateien in der Seite', await r.p.evaluate(() => document.querySelectorAll('head [src*="kamera-studio"], head [href*="kamera-studio"]').length === 0));
+      await r.ctx.unroute('**/lib/kamera-studio/ks-engine.js');
+      await r.p.click('#studioNochmal');
+      await r.p.waitForFunction(() => document.querySelector('#ksWurzel .ks'), null, { timeout: 8000 }).catch(() => {});
+      pruefe('„Erneut versuchen“ öffnet das Studio, jede Datei genau einmal', await studioDa(r.p) && await r.p.evaluate(() => document.querySelectorAll('head [src*="kamera-studio"], head [href*="kamera-studio"]').length === 4));
+      await r.ctx.close();
     }
   } catch (e) { fehler++; console.log('  ✗ Abbruch: ' + (e && e.stack || e)); }
   await b.close(); s.close();

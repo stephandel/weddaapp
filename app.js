@@ -146,6 +146,7 @@
       if (gemerkt && gemerkt.roh) { daten = gemerkt; status = 'ok'; offline = true; hinweis('Offline · Stand ' + stand(gemerkt.geholt)); }
       else { daten = null; status = 'fehler'; }
       zeichnen();
+      if (ks) ks.setze({ wetter: studioWetter() });
     });
   }
   function stand(ms) { var d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -644,8 +645,9 @@
   var altTeilen = /[?&]teilen=alt/.test(location.search);   // alter Teilen-Bildschirm zum Vergleich, bis das Studio auf dem iPhone ausprobiert ist
   var ks = null, ksLaden = null, studioZuletztFokus = null;
 
-  function nutzerLies(k) { try { return localStorage.getItem('ks-nutzer-' + k); } catch (e) { return null; } }
-  function nutzerSchreibe(k, v) { try { if (v == null) localStorage.removeItem('ks-nutzer-' + k); else localStorage.setItem('ks-nutzer-' + k, v); } catch (e) { } }
+  // Eigene Schlüssel (wedda-wf-…), nicht die des Studios: der Online-Kamera-Konfigurator liegt unter derselben Adresse (stephandel.github.io)
+  function nutzerLies(k) { return speicher.lesen('wf-' + k, null); }
+  function nutzerSchreibe(k, v) { if (v == null) { try { localStorage.removeItem('wedda-wf-' + k); } catch (e) { } } else speicher.schreiben('wf-' + k, v); }
   function inListe(liste, id) { return liste.some(function (x) { return x[0] === id; }); }
   function zugang() {
     var ort = nutzerLies('zugangOrt'); if (!inListe(ZUGANG_ORTE, ort)) ort = ZUGANG_STD.ort;
@@ -667,6 +669,8 @@
   function zugangAnwenden() {
     var z = zugang();
     $$('.zugang-kopf, .zugang-schwebend').forEach(function (e) { e.remove(); });
+    if (z.ort !== 'kachel') $$('.zugang-kachel').forEach(function (e) { e.remove(); });   // auch im versteckten Reiter
+    if (z.ort !== 'mehr') $$('.zugang-mehr').forEach(function (e) { e.remove(); });
     if (z.ort === 'kopf') {
       var ziel = { 'links-aussen': ['#kopfOrte', 'beforebegin'], 'links-innen': ['#kopfOrte', 'afterend'], 'rechts-innen': ['#kopfSuche', 'beforebegin'], 'rechts-aussen': ['#kopfTeilen', 'afterend'] }[z.platz];
       $(ziel[0]).insertAdjacentHTML(ziel[1], zugangKnopf(z, 'kopf-knopf zugang-kopf'));
@@ -694,14 +698,21 @@
     var n = $('[data-' + art + '="' + wert + '"]'); if (n) n.focus();
   }
 
-  // Wetter im Format des Studios (SPEC „Wetter“); ohne Daten nur Ort und Zeit, damit nie Beispielwerte auf dem Foto landen
+  // Ortszeit mit Versatz (das Studio liest Stunde und Minute direkt aus dem Text, deshalb nie UTC mit „Z“)
+  function versatz(sek) { var a = Math.abs(sek); return (sek < 0 ? '-' : '+') + pad(Math.floor(a / 3600)) + ':' + pad(Math.floor(a % 3600 / 60)); }
+  function ortszeitJetzt() {
+    var d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00' + versatz(-d.getTimezoneOffset() * 60);
+  }
+  // Wetter im Format des Studios (SPEC „Wetter“); ohne Daten nur Ort und Zeit, damit nie Beispielwerte auf dem Foto landen.
+  // Gemerkte Daten gelten auch während eines Neuladens (status „laden“).
   function studioWetter() {
-    var m = daten && status === 'ok' ? aufbereiten() : null, gps = ort.id === 'gps';
-    var w = { ort: { stadt: gps ? '' : ort.name.split(',')[0], stadtteil: '', land: '', lat: ort.lat, lon: ort.lon }, zeit: new Date().toISOString() };
+    var m = daten ? aufbereiten() : null, gps = ort.id === 'gps';
+    var w = { ort: { stadt: gps ? '' : ort.name.split(',')[0], stadtteil: '', land: '', lat: ort.lat, lon: ort.lon }, zeit: ortszeitJetzt() };
     if (!m) return w;
-    var c = m.c, d = m.d, code = aktuellCode(m), off = m.offset, vz = off < 0 ? '-' : '+', a = Math.abs(off);
+    var c = m.c, d = m.d, code = aktuellCode(m);
     w.temp = c.temperature_2m; w.gefuehlt = c.apparent_temperature; w.code = code; w.lage = codeInfo(code, c.is_day)[1];
-    w.zeit = m.jetzt + ':00' + vz + pad(Math.floor(a / 3600)) + ':' + pad(Math.floor(a % 3600 / 60));
+    w.zeit = m.jetzt + ':00' + versatz(m.offset);
     w.wind = c.wind_speed_10m; w.windRichtung = c.wind_direction_10m == null ? null : RICHTUNG_KURZ[Math.round(c.wind_direction_10m / 45) % 8]; w.boeen = c.wind_gusts_10m;
     w.regen = d.precipitation_sum[0]; w.regenRisiko = d.precipitation_probability_max ? d.precipitation_probability_max[0] : null;
     w.feuchte = c.relative_humidity_2m; w.druck = c.pressure_msl; w.uv = d.uv_index_max ? d.uv_index_max[0] : null;
@@ -710,16 +721,35 @@
     return w;
   }
   // Studio-Dateien erst bei Bedarf laden (CSS, dann die drei Skripte in fester Reihenfolge); sie liegen im Offline-Speicher
+  // Scheitert eine Datei, kommen alle wieder heraus, damit ein neuer Versuch sauber beginnt
   function studioLaden() {
     if (window.KSStudio) return Promise.resolve();
     if (ksLaden) return ksLaden;
-    var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = KS_ORDNER + 'ks-studio.css'; document.head.appendChild(css);
-    ksLaden = ['ks-symbole.js', 'ks-engine.js', 'ks-studio.js'].reduce(function (kette, datei) {
-      return kette.then(function () {
-        return new Promise(function (ok, fehl) { var s = document.createElement('script'); s.src = KS_ORDNER + datei; s.onload = ok; s.onerror = fehl; document.head.appendChild(s); });
+    var neu = [];
+    var holen = function (tag, datei) {
+      return new Promise(function (ok, fehl) {
+        var e = document.createElement(tag);
+        if (tag === 'link') { e.rel = 'stylesheet'; e.href = KS_ORDNER + datei; } else e.src = KS_ORDNER + datei;
+        e.onload = ok; e.onerror = fehl; neu.push(e); document.head.appendChild(e);
       });
-    }, Promise.resolve()).catch(function (e) { ksLaden = null; throw e; });
+    };
+    ksLaden = ['ks-symbole.js', 'ks-engine.js', 'ks-studio.js'].reduce(function (kette, datei) {
+      return kette.then(function () { return holen('script', datei); });
+    }, holen('link', 'ks-studio.css')).catch(function (e) {
+      neu.forEach(function (x) { x.remove(); }); ksLaden = null; throw e;
+    });
     return ksLaden;
+  }
+  function studioLadenZeigen() {
+    $('#ksWurzel').innerHTML = '<p class="studio-laedt" role="status">Wetterfoto wird geladen …</p>';
+    studioLaden().then(function () { if (!$('#studio').hidden && !ks) studioMount(); }).catch(function () {
+      $('#ksWurzel').innerHTML = '<div class="studio-laedt" role="status"><p>Das Wetterfoto ließ sich nicht laden. Prüfe die Verbindung.</p>' +
+        '<button type="button" class="button" id="studioNochmal">Erneut versuchen</button></div>';
+    });
+  }
+  // Hinter dem Wetterfoto ist nichts bedienbar (auch nicht für VoiceOver)
+  function hintergrundSperren(an) {
+    $$('#kopf, #inhalt, #leiste, #meldung, .zugang-schwebend').forEach(function (e) { if (an) e.setAttribute('inert', ''); else e.removeAttribute('inert'); });
   }
   function studioMount() {
     $('#ksWurzel').innerHTML = '';
@@ -731,23 +761,23 @@
     if (altTeilen) { teilenAuf(); return; }
     if (!$('#studio').hidden) return;
     studioZuletztFokus = knopf || document.activeElement;
-    $('#studio').hidden = false; document.body.style.overflow = 'hidden';
+    $('#studio').hidden = false; document.body.style.overflow = 'hidden'; hintergrundSperren(true);
     if (window.KSStudio) {
       studioMount();
       if (kamera) ks.neuesFoto(); else $('#studioZu').focus();
       return;
     }
-    $('#ksWurzel').innerHTML = '<p class="studio-laedt" role="status">Wetterfoto wird geladen …</p>';
     $('#studioZu').focus();
-    studioLaden().then(function () { if (!$('#studio').hidden && !ks) studioMount(); }).catch(function () {
-      $('#ksWurzel').innerHTML = '<p class="studio-laedt" role="status">Das Wetterfoto ließ sich nicht laden. Prüfe die Verbindung und versuche es noch einmal.</p>';
-    });
+    studioLadenZeigen();
   }
   function studioZu() {
     if (ks) { try { ks.zerstoere(); } catch (e) { } ks = null; }
     $('#ksWurzel').innerHTML = '';
-    $('#studio').hidden = true; document.body.style.overflow = '';
-    if (studioZuletztFokus && studioZuletztFokus.isConnected && studioZuletztFokus.focus) studioZuletztFokus.focus();
+    $('#studio').hidden = true; document.body.style.overflow = ''; hintergrundSperren(false);
+    // Wurde der Knopf inzwischen neu gezeichnet (neue Wetterdaten), den sichtbaren Wetterfoto-Knopf nehmen
+    var f = studioZuletztFokus && studioZuletztFokus.isConnected ? studioZuletztFokus : null;
+    if (!f) f = $$('[data-zugang]').filter(function (e) { return e.getClientRects().length; })[0] || $('#kopfTeilen');
+    if (f && f.focus) f.focus();
   }
 
   // ---------- Ereignisse ----------
@@ -759,6 +789,7 @@
     $('#kopfTeilen').addEventListener('click', function () { vorherTab = tab; studioAuf(false, $('#kopfTeilen')); });
     document.addEventListener('click', function (e) { var k = e.target.closest('[data-zugang]'); if (k) studioAuf(true, k); });
     $('#studioZu').addEventListener('click', studioZu);
+    $('#ksWurzel').addEventListener('click', function (e) { if (e.target.closest('#studioNochmal')) studioLadenZeigen(); });
     // Esc schließt das Wetterfoto erst, wenn das Studio selbst nichts mehr zu schließen hatte (es meldet das mit preventDefault)
     window.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !e.defaultPrevented && !$('#studio').hidden) studioZu(); });
     $('#leiste').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (b) waehleTab(b.dataset.tab); });
