@@ -355,6 +355,8 @@
 .ks.ks-gross.ks-hoch[data-ks-variante="schnell"] .ks-seite { max-height: 64%; }
 /* Ein-Tipp mit fester Knopfreihe nach dem Foto: etwas mehr Höhe, damit die Vorlagen ganz zu sehen sind */
 .ks.ks-hoch:not(.ks-gross):not(.ks-klein)[data-ks-variante="schnell"] .ks-seite:has(.ks-nach-foto) { max-height: 56%; }   /* auch wenn die Knöpfe mitrollen, sonst kippt die Höhe danach auf 52 % */
+/* Kleines Hochformat (iPhone SE, Studio unter 600 px hoch): niedrigere Vorlagen-Vorschau, damit die Namen im Rollbereich nicht angeschnitten sind */
+.ks.ks-hoch.ks-klein[data-ks-variante="schnell"] .ks-vorlage img { height: calc(72px * var(--ks-tk)); }
 .ks.ks-gross.ks-hoch.ks-klein[data-ks-variante="schnell"] .ks-vorlage img { height: calc(56px * var(--ks-tk)); }
 .ks.ks-gross.ks-hoch.ks-klein[data-ks-variante="schnell"] .ks-seite-inhalt > .ks-hilfe { display: none; }
 .ks.ks-quer .ks-karussell, .ks.ks-breit .ks-karussell { flex-wrap: wrap; overflow: visible; }
