@@ -10,7 +10,7 @@
 - Kamera und Teilen genau wie in `DESIGN.md` beschrieben: Bild mit `<canvas>` zeichnen (3:4, 1080 px, JPEG), Infos in der Reihenfolge temp, symbol, ort, datum, wind, regen, sonne, teilen mit `navigator.share({ files })`, sonst herunterladen. Nie GPS oder Foto-Metadaten weitergeben.
 - Keine Webcam-Bilder fremder Betreiber einbinden, solange keine Erlaubnis vorliegt.
 - Einbinden in dieser Reihenfolge: `base.css`, `tokens.css`, `symbole.js`, `ikonen.js`. Bedien-Symbole (Tabs, Menü, Teilen, Suche) nur über `Ikon('name')` aus `ikonen.js`.
-- Fertige Bausteine aus `KI Projekte/WetterPro Tool/gemeinsam/` übernehmen statt neu bauen: `meteogramm.js` (liegt dem Projektpaket bei) zeichnet mehrere Wetterdiagramme übereinander mit gemeinsamer Zeitachse (Daten von Open-Meteo, für den Reiter Graphs); `wpkarte.js` ist der Kartenbaustein (Leaflet) mit Reliefkarte und Wetterflächen für Karten sowie Regenradar und EUMETSAT-Satellit für Rad/Sat.
+- Fertige Bausteine aus `KI Projekte/Wetter Apps/WetterPro Nachbauten/gemeinsam/` übernehmen statt neu bauen: `meteogramm.js` (liegt dem Projektpaket bei) zeichnet mehrere Wetterdiagramme übereinander mit gemeinsamer Zeitachse (Daten von Open-Meteo, für den Reiter Graphs); `wpkarte.js` ist der Kartenbaustein (Leaflet) mit Reliefkarte und Wetterflächen für Karten sowie Regenradar und EUMETSAT-Satellit für Rad/Sat.
 - Datenquelle: Open-Meteo (open-meteo.com, kostenlos, ohne Schlüssel). Wettermodell „Beste Mischung" (Parameter `models=best_match`), nicht in der Kopfzeile.
 - DWD über Bright Sky (seit 20.10.2026, `dwd.js`, Test `node tools/dwd-test.js`): Für Orte in Deutschland und Umgebung ersetzt die DWD-Vorhersage MOSMIX der nächsten Station (höchstens 25 km) auf dem Startbildschirm die Stundenwerte Temperatur, Regen, Sonne, Bewölkung, Regenwahrscheinlichkeit und Wettercode; Tageswerte (Max/Min, Regensumme, Sonnenstunden, Wahrscheinlichkeit) werden daraus berechnet. „Aktuell" nimmt die Messung der nächsten Station, wenn sie höchstens 90 Minuten alt ist (Zeile „Gemessen: Station …"). Wind in Tagesliste, Regen der nächsten 2 Stunden, Graphs und Karten bleiben Open-Meteo. Fällt Bright Sky aus, bleibt alles Open-Meteo, ohne Meldung.
 - Startort: Mannheim (49.4875, 8.466). Standardorte: Mannheim, Mengerschied, Corralejo, El Cotillo, Costa Calma, Morro Jable. Favoriten mit Stern, Favoriten oben. Aktueller Standort per GPS nach Rückfrage, ohne Erlaubnis Startort.
@@ -41,7 +41,7 @@
 - Code-Ablage (GitHub-Repo): `weddaapp`, Test-Seite https://stephandel.github.io/weddaapp/
 - App-Version `0.9.0` (Pilot: 0.x.y), Design-Version 1. Die Build-/Cache-Version wird bei jedem Bau automatisch erhöht.
 - Art: Web-App zum Installieren (PWA).
-- Ordner: `~/KI Projekte/WeddaApp`. Dort anlegen, nirgendwo sonst.
+- Ordner: `~/KI Projekte/Wetter Apps/WeddaApp`. Dort anlegen, nirgendwo sonst.
 - Optimiert für: iPhone (390 px, Daumen unten).
 - Veröffentlichen: GitHub Pages.
 - App-Symbol: `app-symbol-1024.png` (Motiv Heiter), dazu `apple-touch-icon.png` (180 px). Einbinden mit `<link rel="apple-touch-icon" href="apple-touch-icon.png">` und `<link rel="manifest" href="manifest.json">`; dazu ein Service Worker für den Offline-Betrieb.
@@ -56,7 +56,7 @@ Name der App:
 
 Ordner:
 
-> ~/KI Projekte/WeddaApp
+> ~/KI Projekte/Wetter Apps/WeddaApp
 
 Startort:
 
