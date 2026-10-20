@@ -175,14 +175,14 @@ button { -webkit-tap-highlight-color: transparent; }
 .ort-zeile { display: flex; align-items: center; gap: var(--s2); min-height: var(--tap); margin-bottom: var(--s2); color: var(--label-2); font-size: var(--fs-subhead); }
 .ort-zeile b { color: var(--label); }
 #graphs { background: var(--bg-2); border-radius: var(--r-kachel); padding: var(--s2); min-height: calc(var(--s8) * 8); }
-#graphs .mg {
+#graphs.mg {   /* meteogramm.js setzt .mg auf den Behälter selbst */
   --mg-flaeche: var(--bg-2); --mg-flaeche2: var(--bg); --mg-rand: var(--trenner);
   --mg-text: var(--label); --mg-text-still: var(--label-2); --mg-akzent: var(--akzent);
   --mg-schatten: none; --mg-serif: var(--font); --mg-mono: var(--font);
 }
 #karte-zeile { margin: 0 0 var(--s3); }
 #karte { --wk-hoehe: calc(100dvh - var(--kopf-hoehe) - var(--safe-top) - var(--leiste-hoehe) - var(--safe-bottom) - var(--s8) * 4 - var(--tap)); border-radius: var(--r-kachel); overflow: hidden; }
-#karte .wk {
+#karte.wk {   /* wpkarte.js setzt .wk auf den Behälter selbst */
   --wk-leiste: var(--bg-2); --wk-leiste-an: var(--akzent); --wk-zeit: var(--bg-2);
   --wk-text: var(--label); --wk-still: var(--label-2); --wk-akzent: var(--akzent); --wk-rand: var(--trenner);
   min-height: calc(var(--s8) * 10);

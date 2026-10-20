@@ -219,6 +219,21 @@ const inst = p => p.evaluate(() => { const r = document.querySelector('#ksWurzel
       await ctx.close();
     }
 
+    console.log('5b) Graphs und Karte in App-Farben');
+    {
+      const { ctx, p, probleme } = await neueSeite(b, { farbe: 'dark' });
+      await p.click('[data-tab="graphs"]'); await p.waitForSelector('#graphs.mg', { timeout: 8000 }).catch(() => {});
+      const mg = await p.evaluate(() => { const c = getComputedStyle(document.getElementById('graphs')); return [c.getPropertyValue('--mg-flaeche').trim(), c.getPropertyValue('--bg-2').trim()]; });
+      pruefe('Graphs: Meteogramm nimmt die Flächenfarbe der App', mg[0] !== '' && mg[0] === mg[1], mg);
+      await p.waitForTimeout(1200); await p.screenshot({ path: BILDER + '/graphs-dunkel.png' });
+      await p.click('[data-tab="radsat"]'); await p.waitForSelector('#karte.wk', { timeout: 8000 }).catch(() => {});
+      const wk = await p.evaluate(() => { const c = getComputedStyle(document.getElementById('karte')); return [c.getPropertyValue('--wk-leiste').trim(), c.getPropertyValue('--bg-2').trim()]; });
+      pruefe('Rad/Sat: Karte nimmt die Flächenfarbe der App', wk[0] !== '' && wk[0] === wk[1], wk);
+      await p.waitForTimeout(800); await p.screenshot({ path: BILDER + '/radsat-dunkel.png' });
+      pruefe('Keine Fehler in der Konsole', probleme.length === 0, probleme);
+      await ctx.close();
+    }
+
     console.log('6) Funde der zweiten Meinung');
     {
       // Fokus zurück, auch wenn der Knopf inzwischen neu gezeichnet wurde
