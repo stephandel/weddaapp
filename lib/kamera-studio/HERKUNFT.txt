@@ -1,0 +1,5 @@
+Kamera-Studio, unverändert kopiert mit tools/kamera-studio-holen.js
+Quelle: Wetter Apps/Kamera Konfigurator/src/ (privat: GitHub kamera-konfigurator-quelle)
+Stand der Quelle: a290eaf 2026-10-19 Funde der zweiten Meinung zu Paket J behoben: Auslöser nach Drehen/Pfeiltasten, Fokusraub, Regel „Große Bedienung“
+Dateien: ks-symbole.js, ks-engine.js, ks-studio.js, ks-studio.css
+Nicht von Hand ändern: Änderungen in der Quelle machen, dann neu holen.
