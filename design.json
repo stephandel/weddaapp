@@ -182,7 +182,7 @@
     "iconGroesse": 65,
     "iconGlanz": false,
     "appTyp": "pwa",
-    "ordner": "~/KI Projekte/WeddaApp",
+    "ordner": "~/KI Projekte/Wetter Apps/WeddaApp",
     "hosting": "github",
     "zielGeraete": "iphone",
     "notizen": {},
@@ -845,7 +845,7 @@
   "projekt": {
     "name": "WeddaApp",
     "kurzname": "WeddaApp",
-    "ordner": "~/KI Projekte/WeddaApp",
+    "ordner": "~/KI Projekte/Wetter Apps/WeddaApp",
     "repo": "weddaapp",
     "seite": "https://stephandel.github.io/weddaapp/",
     "version": "0.9.0",
