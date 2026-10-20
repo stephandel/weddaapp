@@ -874,6 +874,7 @@
     "air-quality-api.open-meteo.com",
     "marine-api.open-meteo.com",
     "geocoding-api.open-meteo.com",
+    "archive-api.open-meteo.com",
     "api.brightsky.dev",
     "api.rainviewer.com",
     "tilecache.rainviewer.com",

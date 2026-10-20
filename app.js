@@ -1,5 +1,5 @@
 /* app.js – WeddaApp 0.9.0
-   Reiter: Wetter (Startseite mit 4 Modulen), Graphs (meteogramm.js), Kamera (Teilen-Bildschirm), Rad/Sat (wpkarte.js, dazu Karten), Mehr.
+   Reiter: Wetter (Startseite mit 4 Modulen), Graphs (meteogramm.js), Rad/Sat (wpkarte.js, dazu Karten), Mehr; dazu der Wetterfoto-Knopf (Kamera-Studio aus lib/kamera-studio/).
    Daten: Open-Meteo (best_match), in Deutschland Stundenwerte und Messung vom DWD über Bright Sky (dwd.js). Gemerkt wird nur im Browser (localStorage). */
 (function () {
   'use strict';
@@ -26,7 +26,6 @@
   var TABS = [
     { id: 'wetter', name: 'Wetter', ikon: 'cloudsun' },
     { id: 'graphs', name: 'Graphs', ikon: 'chart' },
-    { id: 'kamera', name: 'Kamera', ikon: 'camera' },
     { id: 'radsat', name: 'Rad/Sat', ikon: 'radar' },
     { id: 'mehr', name: 'Mehr', ikon: 'more' }
   ];
@@ -126,9 +125,9 @@
   // ---------- Daten holen ----------
   function url(o) {
     return METEO + '?latitude=' + o.lat + '&longitude=' + o.lon +
-      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m' +
+      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl' +
       '&hourly=temperature_2m,weather_code,is_day,precipitation,precipitation_probability,sunshine_duration,cloud_cover' +
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunshine_duration,daylight_duration,cloud_cover_mean,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunshine_duration,daylight_duration,cloud_cover_mean,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,uv_index_max' +
       '&minutely_15=precipitation&forecast_minutely_15=8&forecast_days=8&timezone=auto&wind_speed_unit=kmh&models=best_match';
   }
   function laden(erneut) {
@@ -142,6 +141,7 @@
       daten = { ort: ort.id, roh: r[0], dwd: r[1], geholt: Date.now() };
       speicher.schreiben('daten-' + ort.id, daten);
       status = 'ok'; offline = false; zeichnen(); hinweis('');
+      if (ks) ks.setze({ wetter: studioWetter() });
     }).catch(function () {
       if (gemerkt && gemerkt.roh) { daten = gemerkt; status = 'ok'; offline = true; hinweis('Offline · Stand ' + stand(gemerkt.geholt)); }
       else { daten = null; status = 'fehler'; }
@@ -281,7 +281,9 @@
         '<button type="button" class="button" id="nochmal">Erneut versuchen</button>') + quellenZeile();
       return;
     }
-    s.innerHTML = '<div class="raster">' + aktuellModul(m) + stundenModul(m) + tageModul(m) + regenModul(m) + '</div>' + quellenZeile();
+    var module = [aktuellModul(m), stundenModul(m), tageModul(m), regenModul(m)], z = zugang();
+    if (z.ort === 'kachel') module.splice(z.platz === 'oben' ? 0 : z.platz === 'mitte' ? 1 : module.length, 0, zugangKachel(z));
+    s.innerHTML = '<div class="raster">' + module.join('') + '</div>' + quellenZeile();
     radarKachelFuellen();
     pruefeSchrift();
   }
@@ -384,13 +386,16 @@
         (eigen ? '<button type="button" class="ikon-knopf tippbar" data-weg="' + esc(o.id) + '" aria-label="' + esc(o.name) + ' entfernen">' + Ikon('x') + '</button>' : '') + '</div>';
     }).join('');
     var seg = WIND_EINHEITEN.map(function (e) { return '<button type="button" role="radio" data-wind="' + e.id + '" aria-checked="' + (e.id === windId) + '">' + e.name + '</button>'; }).join('');
+    var z = zugang();
     s.innerHTML = '<h2 class="titel-gross">' + APP_NAME + '</h2>' +
+      (z.ort === 'mehr' ? '<div class="gruppe abschnitt zugang-mehr">' + zugangKnopf(z, 'zeile-text tippbar') + '</div>' : '') +
       '<form class="suchfeld" id="suchForm" role="search">' + Ikon('search') + '<input id="suchfeld" type="search" placeholder="Ort suchen" aria-label="Ort suchen" autocomplete="off" autocapitalize="words" value="' + esc(suchText) + '"></form>' +
       (treffer ? '<div class="gruppe abschnitt" aria-label="Suchergebnisse">' + treffer + '</div>' : (suchText && suchText.length > 1 && !suchLaeuft ? '<p class="klein abschnitt">Keinen Ort gefunden.</p>' : '')) +
       '<section class="abschnitt"><h2>Orte und Favoriten</h2><div class="gruppe">' + liste +
       '<div class="zeile"><button type="button" class="zeile-text tippbar" id="gpsKnopf"><b>Aktuellen Standort verwenden</b><small>Fragt vorher bei dir nach</small></button><span class="ikon-knopf" aria-hidden="true">' + Ikon('pin') + '</span></div></div></section>' +
       '<section class="abschnitt"><h2>Darstellung</h2><div class="gruppe"><div class="einstell"><span id="windLabel">Wind in</span><div class="segment" role="radiogroup" aria-labelledby="windLabel">' + seg + '</div></div>' +
       '<div class="einstell"><span>Temperatur in °C. Hell und Dunkel folgen deinem iPhone.</span></div></div></section>' +
+      wetterfotoEinstellungen(z) +
       '<section class="abschnitt"><h2>Quellen</h2><div class="gruppe"><ul class="quellen-liste">' +
       '<li>Wetterdaten: Open-Meteo.com (CC BY 4.0)</li><li>Wetterdaten Deutschland (Vorhersage und Messung): Deutscher Wetterdienst über Bright Sky (CC BY 4.0)</li><li>Karte: © OpenStreetMap-Mitwirkende, OpenTopoMap (CC BY-SA)</li><li>Radar: RainViewer</li><li>Satellit: EUMETSAT</li></ul></div></section>' +
       '<p class="quellen-zeile">' + APP_NAME + ' ' + VERSION + ' · Wetterdaten: Open-Meteo.com (CC BY 4.0)</p>';
@@ -433,18 +438,20 @@
     $('#kopfTitel').textContent = tab === 'wetter' ? ort.name : TITEL[tab] || APP_NAME;
   }
   function leisteBauen() {
-    $('#leiste').innerHTML = TABS.map(function (t) {
-      return '<button type="button" class="tab tippbar' + (t.id === 'kamera' ? ' kamera' : '') + '" data-tab="' + t.id + '" aria-label="' + t.name + '">' + Ikon(t.ikon) + (t.id === 'kamera' ? '' : '<span>' + t.name + '</span>') + '</button>';
-    }).join('');
+    var knoepfe = TABS.map(function (t) {
+      return '<button type="button" class="tab tippbar" data-tab="' + t.id + '" aria-label="' + t.name + '">' + Ikon(t.ikon) + '<span>' + t.name + '</span></button>';
+    }), z = zugang();
+    if (z.ort === 'tab') knoepfe.splice(+z.platz - 1, 0, zugangKnopf(z, 'tab tippbar'));
+    $('#leiste').innerHTML = knoepfe.join('');
   }
   function leisteMarkieren() {
     $$('.tab').forEach(function (b) { if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     var bar = $('#leiste'); bar.classList.remove('nur-symbole');
-    var eng = $$('.tab span', bar).some(function (sp) { return sp.scrollWidth > sp.clientWidth + 1; });
+    var eng = $$('.tab:not(.zugang) span', bar).some(function (sp) { return sp.scrollWidth > sp.clientWidth + 1; });
     bar.classList.toggle('nur-symbole', eng);
   }
   function waehleTab(id) {
-    if (id === 'kamera') { vorherTab = tab; teilenAuf(); return; }
+    if (id === 'kamera') { vorherTab = tab; studioAuf(true); return; }
     tab = id;
     $$('.reiter').forEach(function (s) { s.hidden = s.id !== 'tab-' + id; });
     kopfAktualisieren(); leisteMarkieren();
@@ -611,13 +618,149 @@
     setTimeout(function () { URL.revokeObjectURL(u); }, 4000); hinweis('Das Bild wurde gespeichert.');
   }
 
+  // ---------- Wetterfoto: Kamera-Studio (lib/kamera-studio/, unverändert aus dem Kamera-Konfigurator) ----------
+  // Einstellung aus dem Kamera-Konfigurator vom 20.10.2026 (#ausprobieren?f=ffffffffffffffe&au=frei&vs=studio&dz=e&da=s&ds=s):
+  // Oberfläche „Ein-Tipp-Karte“, alle Funktionen an (fehlende Schalter gelten im Studio als an), Auslöser frei verschiebbar,
+  // Galerie 3 Originale / 5 bearbeitete. Der Nutzer darf den Zugangsknopf unter „Mehr“ ändern, Auslöser und Sucher-Knöpfe am Zahnrad im Studio.
+  var KS_ORDNER = 'lib/kamera-studio/';
+  var KS_EINSTELLUNG = {
+    variante: 'schnell', funktionen: {},
+    optionen: { zugangAktion: 'kamera', ausloeserOrt: 'frei', galerieOriginale: 3, galerieBearbeitet: 5, vorschauStart: 'studio',
+      nutzerDarf: { zugang: [], ausloeser: ['studio'], galerie: [], sucher: ['studio'] } }
+  };
+  // Zugangsknopf: gleiche Namen und Grenzen wie im Studio; die Wahl des Nutzers liegt unter denselben Schlüsseln (ks-nutzer-…)
+  var ZUGANG_STD = { ort: 'tab', platz: '3', aus: 'rund' };
+  var ZUGANG_ORTE = [['tab', 'Tab-Leiste'], ['kopf', 'Kopfzeile'], ['schwebend', 'Schwebend'], ['mehr', 'Im Tab „Mehr“'], ['kachel', 'Kachel']];
+  var ZUGANG_PLATZ_STD = { tab: '3', kopf: 'rechts-aussen', schwebend: 'ur', mehr: 'oben', kachel: 'oben' };
+  var ZUGANG_PLAETZE = {
+    tab: [['1', 'Platz 1'], ['2', 'Platz 2'], ['3', 'Platz 3'], ['4', 'Platz 4'], ['5', 'Platz 5']],
+    kopf: [['links-aussen', 'Links außen'], ['links-innen', 'Links innen'], ['rechts-innen', 'Rechts innen'], ['rechts-aussen', 'Rechts außen']],
+    schwebend: [['ol', 'Oben links'], ['or', 'Oben rechts'], ['ul', 'Unten links'], ['ur', 'Unten rechts']],
+    kachel: [['oben', 'Ganz oben'], ['mitte', 'Unter „Aktuell“'], ['unten', 'Ganz unten']],
+    mehr: [['oben', 'Erste Zeile']]
+  };
+  var ZUGANG_AUSSEHEN = [['rund', 'Rund'], ['symbol', 'Nur Symbol'], ['symbolText', 'Symbol und Text'], ['pille', 'Text-Knopf']];
+  var ZUGANG_NICHT = { tab: ['pille'], mehr: ['rund', 'symbol'], kachel: ['symbol'] };
+  var altTeilen = /[?&]teilen=alt/.test(location.search);   // alter Teilen-Bildschirm zum Vergleich, bis das Studio auf dem iPhone ausprobiert ist
+  var ks = null, ksLaden = null, studioZuletztFokus = null;
+
+  function nutzerLies(k) { try { return localStorage.getItem('ks-nutzer-' + k); } catch (e) { return null; } }
+  function nutzerSchreibe(k, v) { try { if (v == null) localStorage.removeItem('ks-nutzer-' + k); else localStorage.setItem('ks-nutzer-' + k, v); } catch (e) { } }
+  function inListe(liste, id) { return liste.some(function (x) { return x[0] === id; }); }
+  function zugang() {
+    var ort = nutzerLies('zugangOrt'); if (!inListe(ZUGANG_ORTE, ort)) ort = ZUGANG_STD.ort;
+    var platz = nutzerLies('zugangPlatz'); if (!inListe(ZUGANG_PLAETZE[ort], platz)) platz = ort === ZUGANG_STD.ort ? ZUGANG_STD.platz : ZUGANG_PLATZ_STD[ort];
+    var nicht = ZUGANG_NICHT[ort] || [], aus = nutzerLies('zugangAussehen');
+    if (!inListe(ZUGANG_AUSSEHEN, aus) || nicht.indexOf(aus) >= 0) aus = nicht.indexOf(ZUGANG_STD.aus) < 0 ? ZUGANG_STD.aus : ZUGANG_AUSSEHEN.map(function (x) { return x[0]; }).filter(function (a) { return nicht.indexOf(a) < 0; })[0];
+    return { ort: ort, platz: platz, aus: aus };
+  }
+  // Eine Bauform für alle Orte; Aussehen über die Klasse zugang-…
+  function zugangKnopf(z, klasse) {
+    var sym = z.aus === 'pille' ? '' : Ikon('camera'), text = z.aus === 'symbolText' || z.aus === 'pille' ? '<span>Wetterfoto</span>' : '';
+    if (z.ort === 'mehr') text = '<span class="zugang-zeile"><b>Wetterfoto</b><small>Foto aufnehmen, Wetter drauf, teilen</small></span>';
+    return '<button type="button" class="' + klasse + ' zugang zugang-' + z.aus + '" data-zugang aria-label="Wetterfoto – Foto aufnehmen">' + sym + text + '</button>';
+  }
+  function zugangKachel(z) {
+    return '<article class="kachel k-mittel zugang-kachel" aria-label="Wetterfoto"><div><h3>Wetterfoto</h3><p class="klein">Foto machen, Wetter drauf, teilen.</p></div>' + zugangKnopf(z, 'zugang-kachel-knopf') + '</article>';
+  }
+  // Knopf in Kopfzeile und schwebend; Tab-Leiste, Kachel und „Mehr“ bauen ihn selbst
+  function zugangAnwenden() {
+    var z = zugang();
+    $$('.zugang-kopf, .zugang-schwebend').forEach(function (e) { e.remove(); });
+    if (z.ort === 'kopf') {
+      var ziel = { 'links-aussen': ['#kopfOrte', 'beforebegin'], 'links-innen': ['#kopfOrte', 'afterend'], 'rechts-innen': ['#kopfSuche', 'beforebegin'], 'rechts-aussen': ['#kopfTeilen', 'afterend'] }[z.platz];
+      $(ziel[0]).insertAdjacentHTML(ziel[1], zugangKnopf(z, 'kopf-knopf zugang-kopf'));
+    } else if (z.ort === 'schwebend') document.body.insertAdjacentHTML('beforeend', zugangKnopf(z, 'zugang-schwebend zugang-pos-' + z.platz));
+    leisteBauen(); leisteMarkieren();
+    if (tab === 'wetter') renderWetter(); else if (tab === 'mehr') renderMehr();
+  }
+  function wetterfotoEinstellungen(z) {
+    var seg = function (art, liste, aktuell, name) {
+      return '<div class="einstell"><span id="wf-' + art + '">' + name + '</span><div class="segment umbruch" role="radiogroup" aria-labelledby="wf-' + art + '">' +
+        liste.map(function (x) { return '<button type="button" role="radio" data-' + art + '="' + x[0] + '" aria-checked="' + (x[0] === aktuell) + '">' + x[1] + '</button>'; }).join('') + '</div></div>';
+    };
+    var nicht = ZUGANG_NICHT[z.ort] || [], aussehen = ZUGANG_AUSSEHEN.filter(function (x) { return nicht.indexOf(x[0]) < 0; });
+    return '<section class="abschnitt" aria-labelledby="wf-titel"><h2 id="wf-titel">Wetterfoto</h2><div class="gruppe">' +
+      seg('zo', ZUGANG_ORTE, z.ort, 'Wo sitzt der Wetterfoto-Knopf?') +
+      (ZUGANG_PLAETZE[z.ort].length > 1 ? seg('zp', ZUGANG_PLAETZE[z.ort], z.platz, 'Platz') : '') +
+      seg('zs', aussehen, z.aus, 'Aussehen') +
+      '<div class="einstell"><span class="klein">Das gilt nur für dieses Gerät. Auslöser und Sucher-Knöpfe stellst du im Wetterfoto über das Zahnrad ein.</span>' +
+      '<button type="button" class="button leise" id="wfZurueck">Zurücksetzen</button></div></div></section>';
+  }
+  function wetterfotoWahl(art, wert) {
+    if (art === 'zo') { nutzerSchreibe('zugangOrt', wert); nutzerSchreibe('zugangPlatz', null); }
+    else nutzerSchreibe(art === 'zp' ? 'zugangPlatz' : 'zugangAussehen', wert);
+    zugangAnwenden();
+    var n = $('[data-' + art + '="' + wert + '"]'); if (n) n.focus();
+  }
+
+  // Wetter im Format des Studios (SPEC „Wetter“); ohne Daten nur Ort und Zeit, damit nie Beispielwerte auf dem Foto landen
+  function studioWetter() {
+    var m = daten && status === 'ok' ? aufbereiten() : null, gps = ort.id === 'gps';
+    var w = { ort: { stadt: gps ? '' : ort.name.split(',')[0], stadtteil: '', land: '', lat: ort.lat, lon: ort.lon }, zeit: new Date().toISOString() };
+    if (!m) return w;
+    var c = m.c, d = m.d, code = aktuellCode(m), off = m.offset, vz = off < 0 ? '-' : '+', a = Math.abs(off);
+    w.temp = c.temperature_2m; w.gefuehlt = c.apparent_temperature; w.code = code; w.lage = codeInfo(code, c.is_day)[1];
+    w.zeit = m.jetzt + ':00' + vz + pad(Math.floor(a / 3600)) + ':' + pad(Math.floor(a % 3600 / 60));
+    w.wind = c.wind_speed_10m; w.windRichtung = c.wind_direction_10m == null ? null : RICHTUNG_KURZ[Math.round(c.wind_direction_10m / 45) % 8]; w.boeen = c.wind_gusts_10m;
+    w.regen = d.precipitation_sum[0]; w.regenRisiko = d.precipitation_probability_max ? d.precipitation_probability_max[0] : null;
+    w.feuchte = c.relative_humidity_2m; w.druck = c.pressure_msl; w.uv = d.uv_index_max ? d.uv_index_max[0] : null;
+    w.sonnenaufgang = d.sunrise ? uhrzeit(d.sunrise[0]) : null; w.sonnenuntergang = d.sunset ? uhrzeit(d.sunset[0]) : null;
+    w.modell = m.j._dwd ? 'DWD MOSMIX' : 'Open-Meteo';
+    return w;
+  }
+  // Studio-Dateien erst bei Bedarf laden (CSS, dann die drei Skripte in fester Reihenfolge); sie liegen im Offline-Speicher
+  function studioLaden() {
+    if (window.KSStudio) return Promise.resolve();
+    if (ksLaden) return ksLaden;
+    var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = KS_ORDNER + 'ks-studio.css'; document.head.appendChild(css);
+    ksLaden = ['ks-symbole.js', 'ks-engine.js', 'ks-studio.js'].reduce(function (kette, datei) {
+      return kette.then(function () {
+        return new Promise(function (ok, fehl) { var s = document.createElement('script'); s.src = KS_ORDNER + datei; s.onload = ok; s.onerror = fehl; document.head.appendChild(s); });
+      });
+    }, Promise.resolve()).catch(function (e) { ksLaden = null; throw e; });
+    return ksLaden;
+  }
+  function studioMount() {
+    $('#ksWurzel').innerHTML = '';
+    ks = KSStudio.mount($('#ksWurzel'), { variante: KS_EINSTELLUNG.variante, funktionen: KS_EINSTELLUNG.funktionen, optionen: KS_EINSTELLUNG.optionen, wetter: studioWetter(), theme: 'auto', appName: APP_NAME });
+  }
+  // kamera: der Knopf soll gleich die Kamera öffnen (geht nur direkt im Antippen, also nur, wenn das Studio schon geladen ist)
+  // knopf: der angetippte Knopf, dorthin kehrt der Fokus zurück (Safari fokussiert angetippte Knöpfe nicht)
+  function studioAuf(kamera, knopf) {
+    if (altTeilen) { teilenAuf(); return; }
+    if (!$('#studio').hidden) return;
+    studioZuletztFokus = knopf || document.activeElement;
+    $('#studio').hidden = false; document.body.style.overflow = 'hidden';
+    if (window.KSStudio) {
+      studioMount();
+      if (kamera) ks.neuesFoto(); else $('#studioZu').focus();
+      return;
+    }
+    $('#ksWurzel').innerHTML = '<p class="studio-laedt" role="status">Wetterfoto wird geladen …</p>';
+    $('#studioZu').focus();
+    studioLaden().then(function () { if (!$('#studio').hidden && !ks) studioMount(); }).catch(function () {
+      $('#ksWurzel').innerHTML = '<p class="studio-laedt" role="status">Das Wetterfoto ließ sich nicht laden. Prüfe die Verbindung und versuche es noch einmal.</p>';
+    });
+  }
+  function studioZu() {
+    if (ks) { try { ks.zerstoere(); } catch (e) { } ks = null; }
+    $('#ksWurzel').innerHTML = '';
+    $('#studio').hidden = true; document.body.style.overflow = '';
+    if (studioZuletztFokus && studioZuletztFokus.isConnected && studioZuletztFokus.focus) studioZuletztFokus.focus();
+  }
+
   // ---------- Ereignisse ----------
   function binden() {
     $('#kopfOrte').innerHTML = Ikon('pin'); $('#kopfSuche').innerHTML = Ikon('search'); $('#kopfTeilen').innerHTML = Ikon('share');
     $('#teilenGo').innerHTML = Ikon('share');
     $('#kopfOrte').addEventListener('click', function () { waehleTab('mehr'); });
     $('#kopfSuche').addEventListener('click', function () { waehleTab('mehr'); var f = $('#suchfeld'); if (f) f.focus(); });
-    $('#kopfTeilen').addEventListener('click', function () { vorherTab = tab; teilenAuf(); });
+    $('#kopfTeilen').addEventListener('click', function () { vorherTab = tab; studioAuf(false, $('#kopfTeilen')); });
+    document.addEventListener('click', function (e) { var k = e.target.closest('[data-zugang]'); if (k) studioAuf(true, k); });
+    $('#studioZu').addEventListener('click', studioZu);
+    // Esc schließt das Wetterfoto erst, wenn das Studio selbst nichts mehr zu schließen hatte (es meldet das mit preventDefault)
+    window.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !e.defaultPrevented && !$('#studio').hidden) studioZu(); });
     $('#leiste').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (b) waehleTab(b.dataset.tab); });
     $('#teilenZu').addEventListener('click', teilenZu);
     $('#teilenGo').addEventListener('click', teilenGo);
@@ -651,6 +794,8 @@
       var w = t.closest('[data-wind]'); if (w) { windId = w.dataset.wind; speicher.schreiben('wind', windId); renderMehr(); var nw = $('[data-wind="' + windId + '"]'); if (nw) nw.focus(); return; }
       var md = t.closest('[data-modus]'); if (md) { radsatModus = md.dataset.modus; speicher.schreiben('radsat-modus', radsatModus); renderRadSat(); var nm = $('[data-modus="' + radsatModus + '"]'); if (nm) nm.focus(); return; }
       if (t.closest('#gpsKnopf')) return void gpsFragen();
+      var wf = t.closest('[data-zo], [data-zp], [data-zs]'); if (wf) { var art = wf.dataset.zo ? 'zo' : wf.dataset.zp ? 'zp' : 'zs'; return void wetterfotoWahl(art, wf.dataset[art]); }
+      if (t.closest('#wfZurueck')) { ['zugangOrt', 'zugangPlatz', 'zugangAussehen'].forEach(function (k) { nutzerSchreibe(k, null); }); zugangAnwenden(); var zb = $('#wfZurueck'); if (zb) zb.focus(); return; }
       if (t.closest('.ort-zeile')) return void waehleTab('mehr');
     });
     $('#inhalt').addEventListener('input', function (e) { if (e.target.id === 'suchfeld') suchen(e.target.value); });
@@ -666,14 +811,15 @@
 
   // ---------- Start ----------
   function start() {
-    binden(); leisteBauen(); pruefeSchrift();
+    binden(); zugangAnwenden(); pruefeSchrift();
     var gemerkt = speicher.lesen('daten-' + ort.id, null);
     if (gemerkt && gemerkt.roh) { daten = gemerkt; status = 'ok'; }
     if (offline && daten) hinweis('Offline · Stand ' + stand(daten.geholt));
     waehleTab('wetter');
     if (!offline) laden(); else if (!daten) { status = 'fehler'; zeichnen(); }
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () { });
-    if (/[?&]kamera=1/.test(location.search)) { vorherTab = 'wetter'; teilenAuf(); }
+    if (/[?&]kamera=1/.test(location.search)) { vorherTab = 'wetter'; studioAuf(false); }
+    else if (!altTeilen) setTimeout(function () { studioLaden().catch(function () { }); }, 1500);   // vorladen, damit der Knopf gleich die Kamera öffnen kann
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

@@ -212,6 +212,43 @@ button { -webkit-tap-highlight-color: transparent; }
 .teilen-ausloeser:active { transform: scale(.94); }
 .teilen-ausloeser:focus-visible { outline-color: var(--akzent); outline-width: 3px; }
 
+/* ---------- Wetterfoto: Zugangsknopf an allen Orten ---------- */
+.zugang .ikon { fill: none; }
+.tab.zugang-rund { flex: 0 0 auto; align-self: center; width: var(--tap); min-width: var(--tap); height: var(--tap); min-height: var(--tap); margin: 0 var(--s1); background: var(--akzent); color: var(--auf-akzent); border-radius: 50%; }
+.tab.zugang-symbol, .tab.zugang-symbolText { color: var(--akzent-text); }
+.leiste.nur-symbole .tab.zugang-symbolText span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.kopf-knopf.zugang-rund { background: var(--akzent); color: var(--auf-akzent); border-radius: 50%; }
+.kopf-knopf.zugang-symbolText, .kopf-knopf.zugang-pille { width: auto; padding: 0 var(--s3); gap: var(--s1); display: inline-flex; align-items: center; background: var(--fuellung); border-radius: var(--r-chip); font-size: var(--fs-subhead); font-weight: 600; }
+.zugang-schwebend { position: fixed; z-index: 31; min-width: var(--tap); min-height: var(--tap); padding: 0 var(--s3); display: inline-flex; align-items: center; justify-content: center; gap: var(--s1);
+  border-radius: var(--r-chip); background: var(--akzent); color: var(--auf-akzent); font-size: var(--fs-subhead); font-weight: 600; box-shadow: var(--glas-schatten); }
+.zugang-schwebend.zugang-rund, .zugang-schwebend.zugang-symbol { width: calc(var(--tap) * 1.2); height: calc(var(--tap) * 1.2); padding: 0; border-radius: 50%; }
+.zugang-pos-ol, .zugang-pos-or { top: calc(var(--kopf-hoehe) + var(--safe-top) + var(--s3)); }
+.zugang-pos-ul, .zugang-pos-ur { bottom: calc(var(--leiste-hoehe) + var(--safe-bottom) + var(--s2) + var(--s4)); }
+.zugang-pos-ol, .zugang-pos-ul { left: max(var(--rand), var(--safe-left)); }
+.zugang-pos-or, .zugang-pos-ur { right: max(var(--rand), var(--safe-right)); }
+.zugang-mehr { margin-bottom: var(--s4); }
+.zugang-mehr .zugang { flex-direction: row; align-items: center; justify-content: flex-start; gap: var(--s3); padding: var(--s2) var(--s4); width: 100%; color: var(--akzent-text); }
+.zugang-zeile { display: flex; flex-direction: column; }
+.zugang-zeile b { color: var(--label); }
+.zugang-zeile small { color: var(--label-2); font-size: var(--fs-footnote); }
+.zugang-kachel { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.zugang-kachel h3 { font-size: var(--fs-title3); }
+.zugang-kachel-knopf { flex: none; min-width: var(--tap); min-height: var(--tap); display: inline-flex; align-items: center; justify-content: center; gap: var(--s1); padding: 0 var(--s4);
+  border-radius: var(--r-chip); background: var(--akzent); color: var(--auf-akzent); font-weight: 600; }
+.zugang-kachel-knopf.zugang-rund { width: var(--tap); padding: 0; border-radius: 50%; }
+.zugang-schwebend:active, .zugang-kachel-knopf:active { opacity: .6; transform: scale(.97); }
+.segment.umbruch { flex-wrap: wrap; }
+.segment.umbruch button { flex: 1 1 auto; padding: 0 var(--s3); }
+
+/* ---------- Wetterfoto: Studio im Vollbild ---------- */
+.studio { position: fixed; inset: 0; z-index: 50; background: var(--bg); color: var(--label); display: flex; flex-direction: column; padding: var(--safe-top) var(--safe-right) 0 var(--safe-left); }
+.studio-kopf { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: var(--tap); padding: 0 var(--s2) 0 var(--rand); }
+.studio-titel { font-size: var(--fs-title3); font-weight: 600; }
+.studio-zu { min-width: var(--tap); min-height: var(--tap); padding: 0 var(--s2); font-size: var(--fs-body); font-weight: 600; color: var(--akzent-text); border-radius: var(--r-button); }
+.studio-zu:active { opacity: .6; }
+.studio-wurzel { flex: 1; min-height: 0; position: relative; padding-bottom: var(--safe-bottom); }
+.studio-laedt { padding: var(--s6) var(--rand); text-align: center; color: var(--label-2); }
+
 /* ---------- breite Bildschirme (iPad) ---------- */
 @media (min-width: 768px) {
   .raster { grid-template-columns: repeat(4, minmax(0, 1fr)); }

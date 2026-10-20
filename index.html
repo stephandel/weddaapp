@@ -55,6 +55,15 @@
   <input type="file" id="dateiKamera" accept="image/*" capture="environment" hidden>
 </div>
 
+<!-- Wetterfoto: Kamera-Studio aus lib/kamera-studio/, wird erst bei Bedarf geladen -->
+<div class="studio" id="studio" role="dialog" aria-modal="true" aria-label="Wetterfoto" hidden>
+  <div class="studio-kopf">
+    <h2 class="studio-titel">Wetterfoto</h2>
+    <button type="button" class="studio-zu" id="studioZu">Fertig</button>
+  </div>
+  <div class="studio-wurzel" id="ksWurzel"></div>
+</div>
+
 <script src="symbole.js"></script>
 <script src="ikonen.js"></script>
 <script src="lib/leaflet/leaflet.min.js"></script>
