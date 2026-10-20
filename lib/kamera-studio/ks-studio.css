@@ -249,7 +249,7 @@
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .ks .ks-glas-knopf { background: var(--ks-bg2); } }
 .ks .ks-knopf.ks-original { border-radius: 999px; font-size: var(--ks-fs-fuss); padding: 0 12px; }
-.ks .ks-knopf.ks-original[aria-pressed="true"] { background: var(--ks-akzent-flaeche); color: #fff; }
+.ks .ks-knopf.ks-original[aria-pressed="true"] { background: var(--ks-akzent-flaeche); color: var(--ks-auf-akzent); }
 
 /* Kontextstreifen für gewähltes Element */
 .ks .ks-kontext { display: flex; flex-direction: column; gap: 6px; padding: 10px var(--ks-rand) 12px; }
@@ -353,6 +353,8 @@
 .ks .ks-vorlage.ks-an span { color: var(--ks-akzent); font-weight: 700; }
 /* Ein-Tipp bei großer Bedienung auf kleinem Hochformat: Vorlagen samt Namen ohne Rollen sichtbar */
 .ks.ks-gross.ks-hoch[data-ks-variante="schnell"] .ks-seite { max-height: 64%; }
+/* Ein-Tipp mit fester Knopfreihe nach dem Foto: etwas mehr Höhe, damit die Vorlagen ganz zu sehen sind */
+.ks.ks-hoch:not(.ks-gross):not(.ks-klein)[data-ks-variante="schnell"] .ks-seite:has(> .ks-nach-foto) { max-height: 56%; }
 .ks.ks-gross.ks-hoch.ks-klein[data-ks-variante="schnell"] .ks-vorlage img { height: calc(56px * var(--ks-tk)); }
 .ks.ks-gross.ks-hoch.ks-klein[data-ks-variante="schnell"] .ks-seite-inhalt > .ks-hilfe { display: none; }
 .ks.ks-quer .ks-karussell, .ks.ks-breit .ks-karussell { flex-wrap: wrap; overflow: visible; }
