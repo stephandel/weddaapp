@@ -192,6 +192,7 @@ button { -webkit-tap-highlight-color: transparent; }
 #karte .wk-knopf.is-on { color: var(--auf-akzent); }
 #karte [data-ebene="druck"] { display: none; }
 #karte .wk-tk { width: var(--tap); height: var(--tap); }
+#karte .wk-lade { background: var(--bg-2); }   /* Zweittext der App auf festem Dunkel war hell nur 1,3:1 */
 
 /* ---------- Teilen-Bildschirm ---------- */
 .teilen { position: fixed; inset: 0; z-index: 50; background: var(--bild-schwarz); color: var(--bild-text); display: flex; flex-direction: column; padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }

@@ -232,6 +232,12 @@ const inst = p => p.evaluate(() => { const r = document.querySelector('#ksWurzel
       await p.waitForTimeout(800); await p.screenshot({ path: BILDER + '/radsat-dunkel.png' });
       pruefe('Keine Fehler in der Konsole', probleme.length === 0, probleme);
       await ctx.close();
+      // Hell: Plakette „lädt …“ der Karte liegt auf der Kachelfarbe (vorher Zweittext auf festem Dunkel, 1,3:1)
+      const h = await neueSeite(b, { farbe: 'light' });
+      await h.p.click('[data-tab="radsat"]'); await h.p.waitForSelector('#karte.wk .wk-lade', { state: 'attached', timeout: 8000 }).catch(() => {});
+      const lade = await h.p.evaluate(() => { const l = document.querySelector('#karte .wk-lade'), t = document.createElement('i'); t.style.color = 'var(--bg-2)'; document.getElementById('karte').appendChild(t); const r = [l && getComputedStyle(l).backgroundColor, getComputedStyle(t).color]; t.remove(); return r; });
+      pruefe('Hell: Karte „lädt …“ gut lesbar (Fläche der App statt festem Dunkel)', lade[0] && lade[0] === lade[1], lade);
+      await h.ctx.close();
     }
 
     console.log('6) Funde der zweiten Meinung');
