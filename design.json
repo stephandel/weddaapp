@@ -868,5 +868,18 @@
     "speicherSchluessel": "weddaapp-farbe",
     "attribut": "data-farbe",
     "optionen": []
-  }
+  },
+  "erlaubteHosts": [
+    "api.open-meteo.com",
+    "air-quality-api.open-meteo.com",
+    "marine-api.open-meteo.com",
+    "geocoding-api.open-meteo.com",
+    "api.brightsky.dev",
+    "api.rainviewer.com",
+    "tilecache.rainviewer.com",
+    "view.eumetsat.int",
+    "a.tile.opentopomap.org",
+    "b.tile.opentopomap.org",
+    "c.tile.opentopomap.org"
+  ]
 }
