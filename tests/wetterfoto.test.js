@@ -59,6 +59,7 @@ async function neueSeite(b, o) {
   const p = await ctx.newPage(), probleme = [];
   p.on('pageerror', e => probleme.push('JS: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|access control|net::|abgewiesen|Load failed/i.test(m.text())) probleme.push('Konsole: ' + m.text()); });
+  if (o.fremderSpeicher) await ctx.addInitScript(() => { if (window.caches) caches.open('fremde-app-v1'); });   // Speicher einer anderen App unter derselben Adresse
   if (o.speicher) await ctx.addInitScript(s => { Object.keys(s).forEach(k => localStorage.setItem(k, s[k])); }, o.speicher);
   await p.goto(BASIS + (o.adresse || ''));
   await p.waitForSelector(o.omAus ? '#leiste button' : '.aktuell-kachel', { timeout: 10000 });
@@ -204,9 +205,10 @@ const inst = p => p.evaluate(() => { const r = document.querySelector('#ksWurzel
 
     console.log('5) Offline (Service Worker)');
     {
-      const { ctx, p, probleme } = await neueSeite(b, { sw: true });
+      const { ctx, p, probleme } = await neueSeite(b, { sw: true, fremderSpeicher: true });
       await p.waitForFunction(() => navigator.serviceWorker && navigator.serviceWorker.controller, null, { timeout: 10000 }).catch(() => {});
-      const imSpeicher = await p.evaluate(async () => { const ks = await caches.keys(); const c = await caches.open(ks[0]); const k = (await c.keys()).map(r => new URL(r.url).pathname); return k.filter(x => /kamera-studio/.test(x)).length; });
+      pruefe('Service Worker löscht nur eigene Speicher (andere Apps unter derselben Adresse bleiben)', await p.evaluate(() => caches.has('fremde-app-v1')));
+      const imSpeicher = await p.evaluate(async () => { const ks = await caches.keys(); const c = await caches.open(ks.find(k => k.startsWith('wedda-'))); const k = (await c.keys()).map(r => new URL(r.url).pathname); return k.filter(x => /kamera-studio/.test(x)).length; });
       pruefe('Alle 4 Studio-Dateien im Offline-Speicher', imSpeicher === 4, imSpeicher);
       await ctx.setOffline(true);
       await p.reload(); await p.waitForSelector('#leiste [data-zugang]', { timeout: 8000 });
