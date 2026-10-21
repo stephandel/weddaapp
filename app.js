@@ -471,154 +471,6 @@
     document.documentElement.classList.toggle('schrift-gross', px >= 20.7);   // 130 % = 20,8 px, Browser messen 20,797
   }
 
-  // ---------- Teilen-Bildschirm ----------
-  var VORLAGEN = ['Klassisch', 'Glas', 'Minimal', 'Rahmen', 'Polaroid', 'Zeitstempel'];
-  var vorlage = speicher.lesen('vorlage', 'Klassisch');
-  if (VORLAGEN.indexOf(vorlage) < 0) vorlage = 'Klassisch';
-  var foto = null;            // ImageBitmap | HTMLImageElement
-  var symbolBild = null, symbolArt = '';
-
-  function farbe(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-  function infos() {
-    var m = daten && status === 'ok' ? aufbereiten() : null, d = new Date();
-    var i = {
-      app: APP_NAME, ort: ort.name.split(',')[0], datum: pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + String(d.getFullYear()).slice(2),
-      temp: '–', art: 'wolke', wind: '–', regen: '–', sonne: '–', text: ''
-    };
-    if (m) {
-      var info = codeInfo(aktuellCode(m), m.c.is_day);
-      i.temp = grad(m.c.temperature_2m); i.art = info[0]; i.text = info[1];
-      i.wind = wind(m.c.wind_speed_10m) + ' ' + windEinheit().name + ' ' + RICHTUNG_KURZ[Math.round(m.c.wind_direction_10m / 45) % 8];
-      i.regen = zahl(m.d.precipitation_sum[0], 1) + ' mm';
-      i.sonne = m.d.sunshine_duration ? zahl(m.d.sunshine_duration[0] / 3600, 1) + ' h' : '–';
-    }
-    return i;
-  }
-  function symbolLaden(art) {
-    if (symbolBild && symbolArt === art) return Promise.resolve(symbolBild);
-    var svg = WetterSymbol(art), defs = document.getElementById('ws-defs');
-    var inner = defs ? defs.innerHTML : '';
-    svg = svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" ').replace(/(<svg[^>]*>)/, '$1' + inner);
-    return new Promise(function (ok) {
-      var img = new Image();
-      img.onload = function () { symbolBild = img; symbolArt = art; ok(img); };
-      img.onerror = function () { ok(null); };
-      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    });
-  }
-  function himmelFarben() {
-    var g = farbe('--himmel-klar'); var f = g.match(/#[0-9a-fA-F]{6}/g) || [];
-    return f.length >= 2 ? f : [farbe('--radar-grund'), farbe('--radar-grund')];
-  }
-  function bildZeichnen() {
-    var cv = $('#bild'), x = cv.getContext('2d'), W = 1080, H = 1440, i = infos();
-    var band = farbe('--bild-band'), text = farbe('--bild-text'), fam = farbe('--font');
-    return symbolLaden(i.art).then(function (sym) {
-      var aussen = vorlage === 'Rahmen' ? 48 : vorlage === 'Polaroid' ? 60 : 0, unten = vorlage === 'Polaroid' ? 240 : aussen;
-      x.clearRect(0, 0, W, H);
-      x.fillStyle = vorlage === 'Polaroid' || vorlage === 'Rahmen' ? text : farbe('--bild-schwarz'); x.fillRect(0, 0, W, H);
-      var bx = aussen, by = aussen, bw = W - 2 * aussen, bh = H - aussen - unten;
-      x.save(); x.beginPath(); x.rect(bx, by, bw, bh); x.clip();
-      if (foto) {
-        var fw = foto.width, fh = foto.height, s = Math.max(bw / fw, bh / fh);
-        x.drawImage(foto, bx + (bw - fw * s) / 2, by + (bh - fh * s) / 2, fw * s, fh * s);
-      } else {
-        var cols = himmelFarben(), gr = x.createLinearGradient(0, by, 0, by + bh);
-        gr.addColorStop(0, cols[0]); gr.addColorStop(1, cols[cols.length - 1]); x.fillStyle = gr; x.fillRect(bx, by, bw, bh);
-        x.fillStyle = text; x.font = '500 40px ' + fam; x.textAlign = 'center'; x.fillText('Tippe auf „Fotos“ oder „Kamera“', W / 2, by + bh / 2);
-      }
-      var sz = function (px, gew) { x.font = (gew || 400) + ' ' + px + 'px ' + fam; };
-      x.textBaseline = 'middle'; x.fillStyle = text; x.textAlign = 'left';
-      var drawSym = function (px, py, s_) { if (sym) x.drawImage(sym, px, py, s_, s_); };
-
-      if (vorlage === 'Klassisch') {          // Band oben: links Ort+Temperatur, Mitte Wind, rechts Regen+Sonne
-        x.fillStyle = band; x.fillRect(bx, by, bw, 210); x.fillStyle = text;
-        drawSym(bx + 24, by + 20, 120);
-        sz(96, 300); x.textAlign = 'left'; x.fillText(i.temp, bx + 150, by + 74);
-        sz(40, 600); x.fillText(i.ort, bx + 150, by + 156);
-        sz(36, 400); x.fillText(i.datum, bx + 150, by + 192);
-        sz(40, 600); x.textAlign = 'center'; x.fillText(i.wind, bx + bw * 0.55, by + 105);
-        x.textAlign = 'right'; sz(38, 500); x.fillText('Regen ' + i.regen, bx + bw - 28, by + 80); x.fillText('Sonne ' + i.sonne, bx + bw - 28, by + 136);
-      } else if (vorlage === 'Glas') {         // abgerundete Platte unten
-        var ph = 300, py = by + bh - ph - 40;
-        x.fillStyle = band; rundRect(x, bx + 40, py, bw - 80, ph, 40); x.fill(); x.fillStyle = text;
-        drawSym(bx + 70, py + 30, 150); sz(120, 200); x.textAlign = 'left'; x.fillText(i.temp, bx + 240, py + 100);
-        sz(44, 600); x.fillText(i.ort + ' · ' + i.datum, bx + 240, py + 200);
-        sz(36, 400); x.fillText(i.wind + ' · ' + i.regen + ' · ' + i.sonne, bx + 70, py + 262);
-      } else if (vorlage === 'Minimal') {      // dünnes Band unten
-        x.fillStyle = band; x.fillRect(bx, by + bh - 130, bw, 130); x.fillStyle = text;
-        sz(64, 300); x.textAlign = 'left'; x.fillText(i.temp, bx + 40, by + bh - 65);
-        sz(34, 500); x.textAlign = 'right'; x.fillText(i.ort + ' · ' + i.datum, bx + bw - 40, by + bh - 85);
-        sz(28, 400); x.fillText(i.wind + ' · ' + i.regen + ' · ' + i.sonne, bx + bw - 40, by + bh - 40);
-      } else if (vorlage === 'Rahmen') {       // heller Rahmen, Info im unteren Rand
-        x.fillStyle = farbe('--bild-schwarz'); x.textAlign = 'left'; sz(34, 600);
-        x.fillText(i.temp + ' · ' + i.ort + ' · ' + i.datum, 48, H - 24);
-      } else if (vorlage === 'Polaroid') {     // breiter Rand unten
-        x.fillStyle = farbe('--bild-schwarz'); x.textAlign = 'left';
-        drawSym(60, H - 232, 110); sz(80, 300); x.fillText(i.temp, 190, H - 168);
-        sz(40, 600); x.fillText(i.ort + ' · ' + i.datum, 60, H - 70);
-        sz(32, 400); x.textAlign = 'right'; x.fillText(i.wind, W - 60, H - 170); x.fillText(i.regen + ' · ' + i.sonne, W - 60, H - 120);
-      } else if (vorlage === 'Zeitstempel') {  // Leuchtschein statt Fläche
-        x.shadowColor = farbe('--bild-schwarz'); x.shadowBlur = 24; x.fillStyle = text; x.textAlign = 'right';
-        sz(86, 300); x.fillText(i.temp + '  ' + i.datum, bx + bw - 50, by + bh - 150);
-        sz(40, 500); x.fillText(i.ort + ' · ' + i.wind, bx + bw - 50, by + bh - 90);
-        sz(34, 400); x.fillText(i.regen + ' · ' + i.sonne, bx + bw - 50, by + bh - 44);
-        x.shadowBlur = 0;
-      }
-      x.restore();
-      // App-Name klein in der Ecke
-      x.textBaseline = 'middle'; x.textAlign = 'left'; x.fillStyle = vorlage === 'Polaroid' || vorlage === 'Rahmen' ? farbe('--bild-schwarz') : text; x.globalAlpha = .85;
-      sz(26, 600);
-      if (vorlage === 'Klassisch') { x.textAlign = 'right'; x.fillText(APP_NAME, W - 24, H - 28); }
-      else if (vorlage === 'Polaroid') { x.textAlign = 'right'; x.fillText(APP_NAME, W - 60, H - 40); }
-      else if (vorlage === 'Rahmen') { x.textAlign = 'right'; x.fillText(APP_NAME, W - 48, H - 24); }
-      else { x.fillText(APP_NAME, 28, 36 + (vorlage === 'Glas' || vorlage === 'Minimal' || vorlage === 'Zeitstempel' ? 0 : 0)); }
-      x.globalAlpha = 1;
-    });
-  }
-  function rundRect(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
-
-  function vorlagenBauen() {
-    $('#vorlagen').innerHTML = VORLAGEN.map(function (v) { return '<button type="button" class="vorlage" role="radio" data-vorlage="' + v + '" aria-checked="' + (v === vorlage) + '">' + v + '</button>'; }).join('');
-  }
-  var teilenZuletztFokus = null;
-  function teilenAuf() {
-    teilenZuletztFokus = document.activeElement;
-    $('#teilen').hidden = false; document.body.style.overflow = 'hidden';
-    vorlagenBauen(); bildZeichnen(); $('#teilenZu').focus();
-  }
-  function teilenZu() {
-    $('#teilen').hidden = true; document.body.style.overflow = '';
-    if (teilenZuletztFokus && teilenZuletztFokus.focus) teilenZuletztFokus.focus();
-  }
-  function fotoLaden(datei) {
-    if (!datei) return;
-    var fertig = function (b) { foto = b; bildZeichnen(); };
-    if (window.createImageBitmap) {
-      createImageBitmap(datei, { imageOrientation: 'from-image' }).then(fertig).catch(function () { alsBild(datei, fertig); });
-    } else alsBild(datei, fertig);
-  }
-  function alsBild(datei, fertig) {
-    var u = URL.createObjectURL(datei), im = new Image();
-    im.onload = function () { fertig(im); URL.revokeObjectURL(u); }; im.onerror = function () { hinweis('Das Foto ließ sich nicht öffnen.'); URL.revokeObjectURL(u); };
-    im.src = u;
-  }
-  function teilenGo() {
-    bildZeichnen().then(function () {
-      $('#bild').toBlob(function (blob) {
-        if (!blob) { hinweis('Das Bild ließ sich nicht erstellen.'); return; }
-        var datei = new File([blob], 'weddaapp-' + ort.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.jpg', { type: 'image/jpeg' });
-        if (navigator.canShare && navigator.canShare({ files: [datei] }) && navigator.share) {
-          navigator.share({ files: [datei] }).catch(function (e) { if (e && e.name !== 'AbortError') herunterladen(blob, datei.name); });
-        } else herunterladen(blob, datei.name);
-      }, 'image/jpeg', 0.9);
-    });
-  }
-  function herunterladen(blob, name) {
-    var u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function () { URL.revokeObjectURL(u); }, 4000); hinweis('Das Bild wurde gespeichert.');
-  }
-
   // ---------- Wetterfoto: Kamera-Studio (lib/kamera-studio/, unverändert aus dem Kamera-Konfigurator) ----------
   // Einstellung aus dem Kamera-Konfigurator vom 20.10.2026 (#ausprobieren?f=ffffffffffffffe&au=frei&vs=studio&dz=e&da=s&ds=s):
   // Oberfläche „Ein-Tipp-Karte“, alle Funktionen an (fehlende Schalter gelten im Studio als an), Auslöser frei verschiebbar,
@@ -642,7 +494,6 @@
   };
   var ZUGANG_AUSSEHEN = [['rund', 'Rund'], ['symbol', 'Nur Symbol'], ['symbolText', 'Symbol und Text'], ['pille', 'Text-Knopf']];
   var ZUGANG_NICHT = { tab: ['pille'], mehr: ['rund', 'symbol'], kachel: ['symbol'] };
-  var altTeilen = /[?&]teilen=alt/.test(location.search);   // alter Teilen-Bildschirm zum Vergleich, bis das Studio auf dem iPhone ausprobiert ist
   var ks = null, ksLaden = null, studioZuletztFokus = null;
 
   // Eigene Schlüssel (wedda-wf-…), nicht die des Studios: der Online-Kamera-Konfigurator liegt unter derselben Adresse (stephandel.github.io)
@@ -758,7 +609,6 @@
   // kamera: der Knopf soll gleich die Kamera öffnen (geht nur direkt im Antippen, also nur, wenn das Studio schon geladen ist)
   // knopf: der angetippte Knopf, dorthin kehrt der Fokus zurück (Safari fokussiert angetippte Knöpfe nicht)
   function studioAuf(kamera, knopf) {
-    if (altTeilen) { teilenAuf(); return; }
     if (!$('#studio').hidden) return;
     studioZuletztFokus = knopf || document.activeElement;
     $('#studio').hidden = false; document.body.style.overflow = 'hidden'; hintergrundSperren(true);
@@ -783,7 +633,6 @@
   // ---------- Ereignisse ----------
   function binden() {
     $('#kopfOrte').innerHTML = Ikon('pin'); $('#kopfSuche').innerHTML = Ikon('search'); $('#kopfTeilen').innerHTML = Ikon('share');
-    $('#teilenGo').innerHTML = Ikon('share');
     $('#kopfOrte').addEventListener('click', function () { waehleTab('mehr'); });
     $('#kopfSuche').addEventListener('click', function () { waehleTab('mehr'); var f = $('#suchfeld'); if (f) f.focus(); });
     $('#kopfTeilen').addEventListener('click', function () { vorherTab = tab; studioAuf(false, $('#kopfTeilen')); });
@@ -793,18 +642,6 @@
     // Esc schließt das Wetterfoto erst, wenn das Studio selbst nichts mehr zu schließen hatte (es meldet das mit preventDefault)
     window.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !e.defaultPrevented && !$('#studio').hidden) studioZu(); });
     $('#leiste').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (b) waehleTab(b.dataset.tab); });
-    $('#teilenZu').addEventListener('click', teilenZu);
-    $('#teilenGo').addEventListener('click', teilenGo);
-    $('#teilenFotos').addEventListener('click', function () { $('#dateiFotos').click(); });
-    $('#teilenKamera').addEventListener('click', function () { $('#dateiKamera').click(); });
-    $('#dateiFotos').addEventListener('change', function (e) { fotoLaden(e.target.files[0]); e.target.value = ''; });
-    $('#dateiKamera').addEventListener('change', function (e) { fotoLaden(e.target.files[0]); e.target.value = ''; });
-    $('#vorlagen').addEventListener('click', function (e) {
-      var b = e.target.closest('[data-vorlage]'); if (!b) return;
-      vorlage = b.dataset.vorlage; speicher.schreiben('vorlage', vorlage); vorlagenBauen(); bildZeichnen();
-      var n = $('[data-vorlage="' + vorlage + '"]'); if (n) n.focus();
-    });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#teilen').hidden) teilenZu(); });
 
     $('#inhalt').addEventListener('click', function (e) {
       var t = e.target;
@@ -850,7 +687,7 @@
     if (!offline) laden(); else if (!daten) { status = 'fehler'; zeichnen(); }
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () { });
     if (/[?&]kamera=1/.test(location.search)) { vorherTab = 'wetter'; studioAuf(false); }
-    else if (!altTeilen) setTimeout(function () { studioLaden().catch(function () { }); }, 1500);   // vorladen, damit der Knopf gleich die Kamera öffnen kann
+    else setTimeout(function () { studioLaden().catch(function () { }); }, 1500);   // vorladen, damit der Knopf gleich die Kamera öffnen kann
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

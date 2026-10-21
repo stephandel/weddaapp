@@ -172,7 +172,8 @@ const inst = p => p.evaluate(() => { const r = document.querySelector('#ksWurzel
       await r.ctx.close();
       r = await neueSeite(b, { adresse: '?teilen=alt' });
       await r.p.click('#leiste [data-zugang]'); await r.p.waitForTimeout(300);
-      pruefe('?teilen=alt: alter Teilen-Bildschirm zum Vergleich', await r.p.evaluate(() => !document.getElementById('teilen').hidden && document.getElementById('studio').hidden && !window.KSStudio));
+      await r.p.waitForFunction(() => document.querySelector('#ksWurzel .ks'), null, { timeout: 8000 }).catch(() => {});
+      pruefe('?teilen=alt gibt es nicht mehr: öffnet trotzdem das Studio, kein Element #teilen', await studioDa(r.p) && await r.p.evaluate(() => !document.getElementById('teilen') && !document.getElementById('bild') && !document.querySelector('.teilen')));
       await r.ctx.close();
     }
 

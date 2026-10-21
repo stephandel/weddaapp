@@ -39,22 +39,6 @@
 
 <nav class="leiste glas" id="leiste" aria-label="Reiter"></nav>
 
-<!-- Teilen-Bildschirm: immer schwarz -->
-<div class="teilen" id="teilen" role="dialog" aria-modal="true" aria-label="Wetter mit Foto teilen" hidden>
-  <div class="teilen-kopf">
-    <button type="button" class="teilen-text" id="teilenZu">Abbrechen</button>
-  </div>
-  <div class="teilen-buehne"><canvas id="bild" width="1080" height="1440" role="img" aria-label="Vorschau des Wetterbilds"></canvas></div>
-  <div class="vorlagen" id="vorlagen" role="radiogroup" aria-label="Vorlage"></div>
-  <div class="teilen-unten">
-    <button type="button" class="teilen-text" id="teilenFotos">Fotos</button>
-    <button type="button" class="teilen-ausloeser" id="teilenGo" aria-label="Teilen"></button>
-    <button type="button" class="teilen-text" id="teilenKamera">Kamera</button>
-  </div>
-  <input type="file" id="dateiFotos" accept="image/*" hidden>
-  <input type="file" id="dateiKamera" accept="image/*" capture="environment" hidden>
-</div>
-
 <!-- Wetterfoto: Kamera-Studio aus lib/kamera-studio/, wird erst bei Bedarf geladen -->
 <div class="studio" id="studio" role="dialog" aria-modal="true" aria-label="Wetterfoto" hidden>
   <div class="studio-kopf">
