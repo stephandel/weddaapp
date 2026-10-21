@@ -195,6 +195,10 @@ button { -webkit-tap-highlight-color: transparent; }
 #karte .wk-knopf.is-on { color: var(--auf-akzent); }
 #karte [data-ebene="druck"] { display: none; }
 #karte .wk-tk { width: var(--tap); height: var(--tap); }
+/* Vollbild-Blatt der Karte (A32): Fertig in der Textakzentfarbe, gewählter Umschalter wie gewählte Ebene, Beschriftungen nicht unter 11 px */
+#karte { --wk-fertig: var(--akzent-text); }
+#karte .wk-vb-chip[aria-checked="true"] { color: var(--auf-akzent); }
+#karte .wk-ticks, #karte .wk-quelle, #karte .wk-legende { font-size: var(--fs-caption); }
 #karte .wk-lade { background: var(--bg-2); }   /* Zweittext der App auf festem Dunkel war hell nur 1,3:1 */
 
 /* ---------- Wetterfoto: Zugangsknopf an allen Orten ---------- */
