@@ -266,8 +266,8 @@ const inst = p => p.evaluate(() => { const r = document.querySelector('#ksWurzel
       // Esc mit offenem Blatt schließt nur das Blatt
       await r.p.click('#studioZu');
       [fc] = await Promise.all([r.p.waitForEvent('filechooser'), r.p.click('.zugang-kachel [data-zugang]')]); await fc.setFiles(FOTO);
-      await r.p.waitForFunction(() => [...document.querySelectorAll('#ksWurzel button')].some(x => /Dateiart/.test(x.textContent)), null, { timeout: 8000 }).catch(() => {});
-      await r.p.click('#ksWurzel button:has-text("Dateiart")');
+      await r.p.waitForSelector('#ksWurzel [data-akt="senden"]', { timeout: 8000 }).catch(() => {});
+      await r.p.click('#ksWurzel [data-akt="senden"]');
       await r.p.waitForTimeout(300);
       const blatt = await r.p.evaluate(() => !!document.querySelector('#ksWurzel .ks-blatt'));
       await r.p.keyboard.press('Escape'); await r.p.waitForTimeout(300);
