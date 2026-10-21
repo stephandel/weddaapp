@@ -99,6 +99,9 @@ const inst = p => p.evaluate(() => { const r = document.querySelector('#ksWurzel
       const zahnrad = await p.$('#ksWurzel [data-akt="nutzer-oeffnen"]');
       pruefe('Teilen-Knopf und Zahnrad im Studio', teilen.includes('Teilen') && !!zahnrad, teilen.slice(0, 20));
       pruefe('Kein Textvorschlag von Claude (braucht einen Server)', !teilen.some(t => /Claude|Textvorschlag/.test(t)));
+      // Stephan, 21.10.2026: Umschalter „Einfach | Profi“ in den Apps einschalten (Mount-Option stufenWahl)
+      const stufen = await p.$$eval('#ksWurzel .ks-kopf-stufe [data-akt="stufe"]', l => l.map(b => b.textContent.trim()));
+      pruefe('Umschalter „Einfach | Profi“ im Studio-Kopf (stufenWahl an)', stufen.join('|') === 'Einfach|Profi', stufen);
       pruefe('Kein seitliches Scrollen mit Studio', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       await p.screenshot({ path: BILDER + '/studio-390-hell.png' });
       await p.click('#studioZu'); await p.waitForTimeout(200);

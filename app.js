@@ -496,7 +496,8 @@
   // Galerie 3 Originale / 5 bearbeitete. Der Nutzer darf den Zugangsknopf unter „Mehr“ ändern, Auslöser und Sucher-Knöpfe am Zahnrad im Studio.
   var KS_ORDNER = 'lib/kamera-studio/';
   var KS_EINSTELLUNG = {
-    variante: 'schnell', funktionen: {},
+    // stufenWahl: Umschalter „Einfach | Profi“ im Studio-Kopf (Stephan, 21.10.2026)
+    variante: 'schnell', funktionen: {}, stufenWahl: true,
     optionen: { zugangAktion: 'kamera', ausloeserOrt: 'frei', galerieOriginale: 3, galerieBearbeitet: 5, vorschauStart: 'studio',
       nutzerDarf: { zugang: [], ausloeser: ['studio'], galerie: [], sucher: ['studio'] } }
   };
@@ -623,7 +624,7 @@
   }
   function studioMount() {
     $('#ksWurzel').innerHTML = '';
-    ks = KSStudio.mount($('#ksWurzel'), { variante: KS_EINSTELLUNG.variante, funktionen: KS_EINSTELLUNG.funktionen, optionen: KS_EINSTELLUNG.optionen, wetter: studioWetter(), theme: 'auto', appName: APP_NAME });
+    ks = KSStudio.mount($('#ksWurzel'), { variante: KS_EINSTELLUNG.variante, funktionen: KS_EINSTELLUNG.funktionen, optionen: KS_EINSTELLUNG.optionen, stufenWahl: KS_EINSTELLUNG.stufenWahl, wetter: studioWetter(), theme: 'auto', appName: APP_NAME });
   }
   // kamera: der Knopf soll gleich die Kamera öffnen (geht nur direkt im Antippen, also nur, wenn das Studio schon geladen ist)
   // knopf: der angetippte Knopf, dorthin kehrt der Fokus zurück (Safari fokussiert angetippte Knöpfe nicht)
