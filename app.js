@@ -403,7 +403,7 @@
       '<section class="abschnitt"><h2>Darstellung</h2><div class="gruppe"><div class="einstell"><span id="windLabel">Wind in</span><div class="segment" role="radiogroup" aria-labelledby="windLabel">' + seg + '</div></div>' +
       '<label class="einstell schalter-zeile tippbar"><span><b>Meteogramm und Karten immer im Vollbild</b><small>Graphs und Rad/Sat (auch Karten) öffnen über den ganzen Bildschirm; „Fertig“ führt zurück.</small></span>' +
       '<input type="checkbox" role="switch" id="vollbildImmer"' + (vbImmer() ? ' checked' : '') + '></label>' +
-      '<div class="einstell"><span>Temperatur in °C. Hell und Dunkel folgen deinem iPhone.</span></div></div></section>' +
+      '<div class="einstell"><span>Temperatur in °C. Hell und Dunkel folgen deinem Gerät.</span></div></div></section>' +
       wetterfotoEinstellungen(z) +
       '<section class="abschnitt"><h2>Quellen</h2><div class="gruppe"><ul class="quellen-liste">' +
       '<li>Wetterdaten: Open-Meteo.com (CC BY 4.0)</li><li>Wetterdaten Deutschland (Vorhersage und Messung): Deutscher Wetterdienst über Bright Sky (CC BY 4.0)</li><li>Karte: © OpenStreetMap-Mitwirkende, OpenTopoMap (CC BY-SA)</li><li>Radar: RainViewer</li><li>Satellit: EUMETSAT</li></ul></div></section>' +
@@ -622,8 +622,19 @@
   function hintergrundSperren(an) {
     $$('#kopf, #inhalt, #leiste, #meldung, .zugang-schwebend').forEach(function (e) { if (an) e.setAttribute('inert', ''); else e.removeAttribute('inert'); });
   }
+  // Zeichnet das Studio neu (z. B. nach dem Laden des Fotos), verliert der Fokus seinen Knopf und fällt auf die Seite zurück: dann zurück auf „Fertig“
+  var studioFokusUhr = null;
+  function studioFokusHalten() {
+    if (studioFokusUhr) studioFokusUhr.disconnect();
+    studioFokusUhr = new MutationObserver(function () {
+      var a = document.activeElement;
+      if (!$('#studio').hidden && (!a || a === document.body)) $('#studioZu').focus();
+    });
+    studioFokusUhr.observe($('#ksWurzel'), { childList: true, subtree: true });
+  }
   function studioMount() {
     $('#ksWurzel').innerHTML = '';
+    studioFokusHalten();
     ks = KSStudio.mount($('#ksWurzel'), { variante: KS_EINSTELLUNG.variante, funktionen: KS_EINSTELLUNG.funktionen, optionen: KS_EINSTELLUNG.optionen, stufenWahl: KS_EINSTELLUNG.stufenWahl, wetter: studioWetter(), theme: 'auto', appName: APP_NAME });
   }
   // kamera: der Knopf soll gleich die Kamera öffnen (geht nur direkt im Antippen, also nur, wenn das Studio schon geladen ist)
@@ -634,13 +645,15 @@
     $('#studio').hidden = false; document.body.style.overflow = 'hidden'; hintergrundSperren(true);
     if (window.KSStudio) {
       studioMount();
-      if (kamera) ks.neuesFoto(); else $('#studioZu').focus();
+      $('#studioZu').focus();
+      if (kamera) ks.neuesFoto();
       return;
     }
     $('#studioZu').focus();
     studioLadenZeigen();
   }
   function studioZu() {
+    if (studioFokusUhr) { studioFokusUhr.disconnect(); studioFokusUhr = null; }
     if (ks) { try { ks.zerstoere(); } catch (e) { } ks = null; }
     $('#ksWurzel').innerHTML = '';
     $('#studio').hidden = true; document.body.style.overflow = ''; hintergrundSperren(false);

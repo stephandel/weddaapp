@@ -188,6 +188,9 @@ button { -webkit-tap-highlight-color: transparent; }
 /* Meteogramm-Knöpfe 44 px und Einheiten nicht unter 11 px (A32: im Vollbild-Blatt fiel es auf; der Baustein hat 40 px und 0,78 em) */
 #graphs .mg-btn { min-height: var(--tap); min-width: var(--tap); }
 #graphs small { font-size: var(--fs-caption); }
+/* Durchgang 21.10.: Sonnenzeiten waren 10,5 px und hell 2,2:1 (Ocker auf Weiß), die Wert-Marke hell 2,5:1 (Reihenfarbe auf Weiß) */
+#graphs .mg-svg .mg-sonne { fill: var(--label-2); font-size: 11px; }
+#graphs .mg-ax-wert { color: var(--label) !important; }
 #karte-zeile { margin: 0 0 var(--s3); }
 #karte { --wk-hoehe: calc(100dvh - var(--kopf-hoehe) - var(--safe-top) - var(--leiste-hoehe) - var(--safe-bottom) - var(--s8) * 4 - var(--tap)); border-radius: var(--r-kachel); overflow: hidden; }
 #karte.wk {   /* wpkarte.js setzt .wk auf den Behälter selbst */
@@ -204,6 +207,8 @@ button { -webkit-tap-highlight-color: transparent; }
 #karte { --wk-fertig: var(--akzent-text); }
 #karte .wk-vb-chip[aria-checked="true"] { color: var(--auf-akzent); }
 #karte .wk-ticks, #karte .wk-quelle, #karte .wk-legende { font-size: var(--fs-caption); }
+/* Durchgang 21.10.: Zeit-Regler war 28 px hoch */
+#karte .wk-range { height: var(--tap); }
 #karte .wk-lade { background: var(--bg-2); }   /* Zweittext der App auf festem Dunkel war hell nur 1,3:1 */
 
 /* ---------- Wetterfoto: Zugangsknopf an allen Orten ---------- */
