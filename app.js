@@ -429,7 +429,7 @@
     if (!orte.some(function (x) { return x.id === o.id; })) { orte.push({ id: o.id, name: o.name, lat: o.lat, lon: o.lon }); speicher.schreiben('orte', orte); }
     ort = { id: o.id, name: o.name, lat: o.lat, lon: o.lon }; speicher.schreiben('ort', ort);
     suchTreffer = []; suchText = ''; daten = null; radarBild = null; mgAbbauen(); kartenAbbauen();
-    waehleTab('wetter'); laden();
+    waehleTab('wetter'); reiterFokus(); laden();
   }
   function gpsFragen() {
     if (!navigator.geolocation) { hinweis('Dieses Gerät kann den Standort nicht bestimmen.'); return; }
@@ -481,6 +481,8 @@
     else if (id === 'mehr') renderMehr();
     window.scrollTo(0, 0);
   }
+  // Der gedrückte Knopf verschwindet mit seinem Reiter: Fokus auf den neuen Reiter, damit der nächste Tab in seinen Inhalt geht
+  function reiterFokus() { var s = $('#tab-' + tab); if (!s) return; s.setAttribute('tabindex', '-1'); s.focus({ preventScroll: true }); }
   function zeichnen() { kopfAktualisieren(); if (tab === 'wetter') renderWetter(); }
 
   // Große Schrift erkennen (Tagesliste: Zusatzwerte unter den Tag)
@@ -679,7 +681,7 @@
     $('#inhalt').addEventListener('click', function (e) {
       var t = e.target;
       if (t.closest('#nochmal')) return void laden(true);
-      if (t.closest('#radarKachel') || t.closest('#radarAuf')) return void waehleTab('radsat');
+      if (t.closest('#radarKachel') || t.closest('#radarAuf')) return void (waehleTab('radsat'), reiterFokus());
       var o = t.closest('[data-ort]'); if (o) { var f = orte.filter(function (x) { return x.id === o.dataset.ort; })[0]; if (f) ortWaehlen(f); return; }
       var tr = t.closest('[data-treffer]'); if (tr) return void ortWaehlen(suchTreffer[+tr.dataset.treffer]);
       var fv = t.closest('[data-fav]'); if (fv) {
